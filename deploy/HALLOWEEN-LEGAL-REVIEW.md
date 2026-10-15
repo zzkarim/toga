@@ -1,3 +1,5 @@
+> Historical review. See [production release results](PRODUCTION-RELEASE.md) for the subsequent deployed release.
+
 # Halloween and unincorporated-service review — not deployed
 
 This continues `review/halloween-legal` from `4032593` in `artifacts/production-release`. The live release remains unchanged. No production migrations, deployment, real emails, or SMS were performed. The surrounding root workspace's unreleased SMS implementation and all real payment data remain untouched.
