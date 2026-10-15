@@ -1,3 +1,8 @@
+import {
+  TERMS_VERSION,
+  PRIVACY_VERSION,
+  needsAcceptance,
+} from "../../../lib/legal.mjs";
 import { notificationMail } from "../../../lib/notification-mail.mjs";
 import { emailConfigured } from "../../../lib/mail-provider.mjs";
 import { recordRentalActivity } from "../../../lib/rental-activity.mjs";
@@ -101,6 +106,8 @@ async function currentUser() {
 async function requireUser() {
   const u = await currentUser();
   if (!u) fail("Please sign in to continue.", 401);
+  if (needsAcceptance(u))
+    fail("Please review and accept the current terms before continuing.", 428);
   return u;
 }
 async function requireProfile() {
@@ -118,6 +125,10 @@ async function ownedRequest(id, u) {
   return r;
 }
 async function listingData(body, userId) {
+  if (body.lenderConfirmed !== true)
+    fail(
+      "Confirm ownership, condition, and the prohibited-items policy before publishing.",
+    );
   const { title, description, category, size, condition, photos } = body;
   if (
     typeof title !== "string" ||
@@ -155,8 +166,8 @@ async function listingData(body, userId) {
     size,
     condition,
     price: Math.round(price * 100) / 100,
-    retailValue,
-    highValue: retailValue > 150,
+    retailValue: Math.round(retailValue * 100) / 100,
+    lenderConfirmedAt: new Date(),
     photos: JSON.stringify(photos),
     status: "Active",
   };
@@ -299,8 +310,9 @@ async function handle(req, ctx) {
     authLog("verification_succeeded");
     return {
       ok: true,
-      next:
-        result.user.name && result.user.phone
+      next: needsAcceptance(result.user)
+        ? "/accept-terms"
+        : result.user.name && result.user.phone
           ? safeDestination(body.next)
           : "/?view=profile",
     };
@@ -319,8 +331,11 @@ async function handle(req, ctx) {
     await createSession(user);
     return {
       ok: true,
-      next:
-        user.name && user.phone ? safeDestination(body.next) : "/?view=profile",
+      next: needsAcceptance(user)
+        ? "/accept-terms"
+        : user.name && user.phone
+          ? safeDestination(body.next)
+          : "/?view=profile",
     };
   }
   if (route === "auth/password" && method === "POST") {
@@ -425,14 +440,38 @@ async function handle(req, ctx) {
     await createSession(user, true);
     return {
       ok: true,
-      next:
-        user.phone && user.name ? safeDestination(body.next) : "/?view=profile",
+      next: needsAcceptance(user)
+        ? "/accept-terms"
+        : user.phone && user.name
+          ? safeDestination(body.next)
+          : "/?view=profile",
     };
   }
   if (route === "auth/logout" && method === "POST") {
     const token = (await cookies()).get("toga_session")?.value;
     if (token) await db.session.deleteMany({ where: { id: hash(token) } });
     (await cookies()).delete("toga_session");
+    return { ok: true };
+  }
+  if (route === "legal/accept" && method === "POST") {
+    const user = await currentUser();
+    if (!user) fail("Please sign in to continue.", 401);
+    if (
+      body.accepted !== true ||
+      body.termsVersion !== TERMS_VERSION ||
+      body.privacyVersion !== PRIVACY_VERSION
+    )
+      fail("Read the current terms and select the agreement checkbox.");
+    if (needsAcceptance(user))
+      await db.user.update({
+        where: { id: user.id },
+        data: {
+          termsAcceptedAt: new Date(),
+          ageConfirmedAt: new Date(),
+          termsVersion: TERMS_VERSION,
+          privacyVersion: PRIVACY_VERSION,
+        },
+      });
     return { ok: true };
   }
   if (route === "me" && method === "GET") {
@@ -446,6 +485,7 @@ async function handle(req, ctx) {
     return {
       user: {
         ...user,
+        needsTermsAcceptance: needsAcceptance(user),
         hasPassword: Boolean(user.passwordHash),
         rating: stats._avg.score,
         ratingCount: stats._count.score,
@@ -504,7 +544,6 @@ async function handle(req, ctx) {
     });
   }
   if (route === "listings" && method === "GET") {
-    await expireRequests();
     const u = await requireUser(),
       mine = new URL(req.url).searchParams.get("mine") === "true";
     if (mine && !u) fail("Please sign in.", 401);
@@ -572,6 +611,8 @@ async function handle(req, ctx) {
   }
   if (route === "requests" && method === "POST") {
     const u = await requireProfile();
+    if (body.renterAcknowledged !== true || body.termsVersion !== TERMS_VERSION)
+      fail("Confirm your rental responsibilities before requesting this item.");
     let dates;
     try {
       dates = dateRange(body.startDate, body.endDate);
@@ -591,8 +632,17 @@ async function handle(req, ctx) {
       )
         fail("This item is no longer available.");
       if (l.ownerId === u.id) fail("You cannot rent your own listing.");
+      if (body.replacementValue !== l.retailValue)
+        fail(
+          "The replacement value changed. Reopen the listing and review it before requesting.",
+        );
       const reserved = await tx.listing.updateMany({
-        where: { id: l.id, status: "Active" },
+        where: {
+          id: l.id,
+          status: "Active",
+          retailValue: l.retailValue,
+          price: l.price,
+        },
         data: { status: "Requested" },
       });
       if (!reserved.count) fail("Someone else just requested this item.");
@@ -602,6 +652,10 @@ async function handle(req, ctx) {
           lenderId: l.ownerId,
           renterId: u.id,
           pricePerDay: l.price,
+          renterAcknowledgedAt: new Date(),
+          renterAcknowledgedReplacementValue:
+            Math.round(l.retailValue * 100) / 100,
+          renterAcknowledgedTermsVersion: TERMS_VERSION,
           ...dates,
         },
         include: { listing: { include: { owner: true } } },
@@ -834,7 +888,15 @@ async function handle(req, ctx) {
         take: 50,
       }),
     ]);
-    return { users, listings, requests, reports, emails };
+    const seenAuth = new Set();
+    const latestEmails = emails.filter((email) => {
+      if (![OTP_SUBJECT, "Your Toga sign-in link"].includes(email.subject))
+        return true;
+      if (seenAuth.has(email.to)) return false;
+      seenAuth.add(email.to);
+      return true;
+    });
+    return { users, listings, requests, reports, emails: latestEmails };
   }
   if (route === "jobs" && method === "POST") {
     if (

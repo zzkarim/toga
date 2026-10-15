@@ -1,3 +1,4 @@
+import {TERMS_VERSION, PRIVACY_VERSION} from "../lib/legal.mjs";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 const db = new PrismaClient();
@@ -35,6 +36,7 @@ try {
   const { preview } = await call("auth/login", { email });
   const token = new URL(preview).searchParams.get("token");
   await call("auth/verify", { token });
+  await call("legal/accept", {accepted:true,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION});
   const oldSession = cookie;
   await call("auth/password", { password: "short" }, 400);
   await call("auth/password", { password: "a long unique password 123" });

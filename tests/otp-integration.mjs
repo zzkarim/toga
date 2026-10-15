@@ -1,3 +1,4 @@
+import {TERMS_VERSION,PRIVACY_VERSION} from "../lib/legal.mjs";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
@@ -95,6 +96,8 @@ try {
   const renewed = await db.session.findUnique({ where: { id: sessionId } });
   assert.ok(renewed.expiresAt > new Date(Date.now() + 29 * 86400000));
   assert.equal(+renewed.passwordSetupUntil, 0);
+  const accepted=await fetch(base+"/api/legal/accept",{method:"POST",headers:{Origin:base,"Content-Type":"application/json",Cookie:cookie},body:JSON.stringify({accepted:true,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION})});
+  assert.equal(accepted.status,200);
   const change = await fetch(base + "/api/auth/password", {
     method: "POST",
     headers: {

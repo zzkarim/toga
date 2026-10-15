@@ -188,10 +188,11 @@ export default function AuthForm({ onSuccess, onBusy }) {
           </button>
         </div>
         <p className="muted">
-          Add jointoga@gmail.com to your contacts so Toga emails reach your
-          inbox. Check Junk/Spam for “Your Toga verification code” from
-          jointoga@gmail.com. Mark it as not junk. Resending replaces the
-          previous code.
+          By continuing you agree to our <a href="/terms">Terms</a> and{" "}
+          <a href="/privacy">Privacy Policy</a>. Add jointoga@gmail.com to your
+          contacts so Toga emails reach your inbox. Check Junk/Spam for “Your
+          Toga verification code” from jointoga@gmail.com. Mark it as not junk.
+          Resending replaces the previous code.
         </p>
         {preview && (
           <p>
@@ -277,9 +278,10 @@ export default function AuthForm({ onSuccess, onBusy }) {
           : "Forgot password? Sign in with a code"}
       </button>
       <p className="muted">
-        Add jointoga@gmail.com to your contacts so Toga emails reach your inbox.
-        Use your Georgia Tech email address. Check Junk/Spam if your email
-        doesn’t arrive.
+        By continuing you agree to our <a href="/terms">Terms</a> and{" "}
+        <a href="/privacy">Privacy Policy</a>. Add jointoga@gmail.com to your
+        contacts so Toga emails reach your inbox. Use your Georgia Tech email
+        address. Check Junk/Spam if your email doesn’t arrive.
       </p>
     </form>
   );

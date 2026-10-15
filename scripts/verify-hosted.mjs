@@ -1,3 +1,4 @@
+import { TERMS_VERSION, PRIVACY_VERSION } from "../lib/legal.mjs";
 import { PrismaClient } from "@prisma/client";
 import sharp from "sharp";
 import { randomBytes, createHash } from "node:crypto";
@@ -33,6 +34,10 @@ try {
       id,
       email: `${id}@gatech.edu`,
       name: "Temporary deployment check",
+      termsAcceptedAt: new Date(),
+      ageConfirmedAt: new Date(),
+      termsVersion: TERMS_VERSION,
+      privacyVersion: PRIVACY_VERSION,
       phone: "4045550100",
     },
   });

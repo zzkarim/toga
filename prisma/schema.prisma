@@ -8,6 +8,10 @@ datasource db {
   schemas = ["toga"]
 }
 model User {
+  termsAcceptedAt DateTime?
+  termsVersion String?
+  privacyVersion String?
+  ageConfirmedAt DateTime?
   rentalActivity RentalActivity[]
   id String @id @default(cuid())
   email String @unique
@@ -40,6 +44,7 @@ model LoginToken {
   @@schema("toga")
 }
 model Listing {
+  lenderConfirmedAt DateTime?
   id String @id @default(cuid())
   ownerId String
   owner User @relation(fields: [ownerId], references: [id])
@@ -60,6 +65,9 @@ model Listing {
   @@schema("toga")
 }
 model RentalRequest {
+  renterAcknowledgedReplacementValue Float?
+  renterAcknowledgedAt DateTime?
+  renterAcknowledgedTermsVersion String?
   activity RentalActivity[]
   id String @id @default(cuid())
   listingId String

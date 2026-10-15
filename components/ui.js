@@ -102,6 +102,7 @@ export async function api(path, method = "GET", body) {
     );
   }
   const data = await response.json().catch(() => ({}));
+  if (response.status === 428) window.location.assign("/accept-terms");
   if (!response.ok)
     throw new Error(data.error || "Something went wrong. Please try again.");
   return data;

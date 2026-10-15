@@ -88,7 +88,7 @@ Then use **two real controlled Georgia Tech email accounts** in separate browser
 5. Accept as lender. Confirm both numbers and the rental total, then exercise pickup, condition photos, return, and rating.
 6. Send another request and decline/cancel it; verify availability returns. Check expiration and scheduled reminder delivery with controlled test dates.
 7. Submit a test report and confirm that the founder can see it and another student cannot.
-8. Check Vercel function errors, Supabase database health, SendGrid delivery status, and cron HTTP results. Keep actual student data out of logs.
+8. Check Vercel function errors, Supabase database health, Gmail SMTP delivery status, and cron HTTP results. Keep actual student data out of logs.
 
 Do not label deployment complete before this hosted walkthrough succeeds. These manual inbox/browser checks cannot be replaced by the local integration suite or the hosted smoke test.
 
@@ -105,7 +105,7 @@ Confirm the photo bucket is also empty. Then check the actual public Vercel URL 
 - Export/back up Postgres before schema changes; arrange backup retention appropriate to the Supabase plan. Verify a restore on an isolated database.
 - Back up Storage objects separately: a database backup alone does not contain photo bytes.
 - Keep environment variables and a record of the deployed Git revision. A Vercel rollback reverts code, not database migrations; prefer forward database fixes after data has been written.
-- Monitor SendGrid failures, Supabase storage usage, and request errors. Emails marked Failed/Unknown or older than the retry window need founder follow-up in SendGrid Email Activity; they remain visible in the admin table. A 202 response means accepted by SendGrid, not delivered to the inbox.
+- Monitor Gmail SMTP failures, Supabase storage usage, and request errors. Emails marked Failed/Unknown or older than the retry window need founder follow-up in the Gmail sender mailbox; they remain visible in the admin table. An Accepted status means Gmail accepted the message, not that Outlook placed it in the inbox.
 - The service-role key can access Storage broadly. Rotate it through provider tooling if compromised, and update Vercel before reopening the app.
 
 References: [Supabase Prisma connections](https://supabase.com/docs/guides/database/prisma), [private Storage](https://supabase.com/docs/guides/storage/serving/downloads), [Supabase Cron](https://supabase.com/docs/guides/cron), [Vercel function limits](https://vercel.com/docs/functions/limitations), [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing).

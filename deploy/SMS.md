@@ -1,3 +1,5 @@
+> Production status: SMS remains unreleased. The current release uses Gmail SMTP email codes, passwords, and rental emails. This document describes preserved SMS implementation work, not the active production authentication system.
+
 > Current decision (October 14, 2026): no paid Twilio upgrade and no replacement SMS provider enabled. See the free-provider assessment below. The Twilio instructions are retained as historical implementation documentation.
 
 # Toga SMS rollout and testing

@@ -1,3 +1,4 @@
+import {TERMS_VERSION, PRIVACY_VERSION} from "../lib/legal.mjs";
 import assert from 'node:assert/strict';
 import {PrismaClient} from '@prisma/client';
 import {createHash,randomUUID} from 'node:crypto';
@@ -14,7 +15,7 @@ async function login(id){const {response,data}=await call('auth/password-login',
 const request=(cookie,route,body)=>call(route,{cookie,method:'POST',body});
 try{
  const passwordHash=await hashPassword(password);
- for(const id of ids)await db.user.create({data:{id,email:`${id}@gatech.edu`,name:'Local activity check',phone:'4045550100',passwordHash}});
+ for(const id of ids)await db.user.create({data:{id,email:`${id}@gatech.edu`,termsAcceptedAt:new Date(),ageConfirmedAt:new Date(),termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION,name:'Local activity check',phone:'4045550100',passwordHash}});
  let owner=await login(ids[0]);const renter=await login(ids[1]),other=await login(ids[2]);
  const sessionId=createHash('sha256').update(owner.split('=')[1]).digest('hex');
  let session=await db.session.findUnique({where:{id:sessionId}});assert.ok(Math.abs(+session.expiresAt-Date.now()-30*86400000)<10000);
@@ -25,7 +26,7 @@ try{
  assert.equal((await call('me',{cookie:owner})).data.user,null);owner=await login(ids[0]);
  const listing=await db.listing.create({data:{ownerId:ids[0],title:'Local notification check',description:'Temporary local check',category:'Formal',size:'M',condition:'Good',retailValue:50,price:5,photos:'[]'}});listingId=listing.id;
  const startDate=new Date(Date.now()+2*86400000).toISOString().slice(0,10),endDate=new Date(Date.now()+3*86400000).toISOString().slice(0,10);
- assert.equal((await request(renter,'requests',{listingId,startDate,endDate})).response.status,200);
+ assert.equal((await request(renter,'requests',{listingId,startDate,endDate,renterAcknowledged:true,termsVersion:TERMS_VERSION,replacementValue:50})).response.status,200);
  const rental=await db.rentalRequest.findFirst({where:{listingId}});
  const pending=(await call('activity',{cookie:owner})).data;assert.equal(pending.unreadCount,1);assert.match(pending.items[0].message,/New request/);
  assert.equal((await call('activity',{cookie:other})).data.unreadCount,0);

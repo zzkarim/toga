@@ -1,4 +1,9 @@
 "use client";
+import {
+  LENDER_CONFIRMATION,
+  renterAcknowledgement,
+  TERMS_VERSION,
+} from "../lib/legal.mjs";
 import { useState } from "react";
 import { Field, PhotoUpload, money } from "./ui";
 import { categories, campusToday } from "../lib/rules.mjs";
@@ -16,13 +21,15 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
       photos: [],
     },
   );
+  const [lenderConfirmed, setLenderConfirmed] = useState(false);
   const [uploading, setUploading] = useState(false);
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (!uploading) onSubmit(form);
+        if (!uploading && lenderConfirmed)
+          onSubmit({ ...form, lenderConfirmed });
       }}
     >
       <div className="field">
@@ -137,12 +144,26 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
           )}
         </Field>
       </details>
+      <label className="legal-check">
+        <input
+          type="checkbox"
+          required
+          checked={lenderConfirmed}
+          onChange={(e) => setLenderConfirmed(e.target.checked)}
+        />
+        <span>{LENDER_CONFIRMATION}</span>
+      </label>
+      <p className="fine-print">
+        No weapons or realistic weapon props, hazardous materials, stolen or
+        counterfeit goods, or licensed items.{" "}
+        <a href="/safety">Safety and prohibited items</a>
+      </p>
       <p className="fine-print">
         Your listing is available as soon as you publish it.
       </p>
       <button
         className="button burgundy full"
-        disabled={busy || uploading || !form.photos.length}
+        disabled={busy || uploading || !form.photos.length || !lenderConfirmed}
       >
         {uploading
           ? "Finishing photos…"
@@ -272,12 +293,20 @@ export function ProfileForm({ user, onSubmit, onLogout, busy, onUpload }) {
 export function RentalDates({ listing, onSubmit, busy, own }) {
   const [start, setStart] = useState(""),
     [end, setEnd] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
   const quote = rentalTotal(listing.price, start, end);
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit({ listingId: listing.id, startDate: start, endDate: end });
+        onSubmit({
+          listingId: listing.id,
+          startDate: start,
+          endDate: end,
+          renterAcknowledged: acknowledged,
+          termsVersion: TERMS_VERSION,
+          replacementValue: listing.retailValue,
+        });
       }}
     >
       <div className="two-col">
@@ -318,7 +347,19 @@ export function RentalDates({ listing, onSubmit, busy, own }) {
           <strong>{money(quote.total)} total</strong>
         </div>
       )}
-      <button disabled={busy || own || !quote} className="button burgundy full">
+      <label className="legal-check">
+        <input
+          type="checkbox"
+          required
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+        />
+        <span>{renterAcknowledgement(listing.retailValue)}</span>
+      </label>
+      <button
+        disabled={busy || own || !quote || !acknowledged}
+        className="button burgundy full"
+      >
         {own ? "This is your listing" : busy ? "Sending…" : "Request rental"}
       </button>
       <p className="fine-print">

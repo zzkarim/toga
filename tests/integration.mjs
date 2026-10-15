@@ -1,3 +1,4 @@
+import {TERMS_VERSION, PRIVACY_VERSION} from "../lib/legal.mjs";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import sharp from "sharp";
@@ -26,6 +27,7 @@ async function call(
   status = 200,
   extra = {},
 ) {
+  if (route === "requests" && method === "POST" && body) body = {...body, renterAcknowledged:true, termsVersion:TERMS_VERSION, replacementValue:(await db.listing.findUnique({where:{id:body.listingId}}))?.retailValue};
   const res = await fetch(base + "/api/" + route, {
     method,
     redirect: "manual",
@@ -67,6 +69,7 @@ async function login(actor) {
   cookies[actor] = res.headers.get("set-cookie").split(";")[0];
   const { user } = await call("me", "GET", null, actor);
   users.push(user.id);
+  await call("legal/accept", "POST", {accepted:true,termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION}, actor);
   await call(
     "me",
     "PATCH",
@@ -150,6 +153,7 @@ try {
     400,
   );
   const data = {
+    lenderConfirmed: true,
     title: "Test blazer",
     description: "Wool blazer",
     category: "Interview/Professional",
@@ -175,7 +179,7 @@ try {
     "lender",
   );
   assert.equal(
-    (await db.listing.findUnique({ where: { id: listing.id } })).highValue,
+    Boolean((await db.listing.findUnique({ where: { id: listing.id } })).lenderConfirmedAt),
     true,
   );
   await call(`listings/${listing.id}`, "PATCH", data, "renter", 404);
@@ -188,7 +192,7 @@ try {
   );
   const start = new Date(Date.now() + 86400000).toISOString().slice(0, 10),
     end = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
-    request = { listingId: listing.id, startDate: start, endDate: end };
+    request = { listingId: listing.id, startDate: start, endDate: end, renterAcknowledged:true, termsVersion:TERMS_VERSION, replacementValue:200 };
   await call("requests", "POST", request, "lender", 400);
   const races = await Promise.all(
     ["renter", "other"].map((actor) =>
@@ -229,7 +233,7 @@ try {
   await Promise.all([jobs(), jobs()]);
   assert.equal(
     await db.email.count({
-      where: { to: { startsWith: prefix }, subject: "Pickup reminder · Toga" },
+      where: { to: { startsWith: prefix }, subject: {endsWith: ": pickup reminder on Toga"} },
     }),
     2,
   );
@@ -259,7 +263,7 @@ try {
   await Promise.all([jobs(), jobs()]);
   assert.equal(
     await db.email.count({
-      where: { to: { startsWith: prefix }, subject: "Return reminder · Toga" },
+      where: { to: { startsWith: prefix }, subject: {endsWith: ": return reminder on Toga"} },
     }),
     2,
   );

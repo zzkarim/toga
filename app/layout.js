@@ -1,3 +1,6 @@
+import LegalFooter from "../components/legal-footer";
+import SeasonalDecor from "../components/seasonal-decor";
+import "./seasonal.css";
 import "./globals.css";
 import { DESCRIPTION } from "../lib/campus.mjs";
 export const metadata = {
@@ -22,7 +25,17 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body
+        className={
+          process.env.TOGA_THEME === "classic"
+            ? "theme-classic"
+            : "theme-halloween"
+        }
+      >
+        <SeasonalDecor />
+        {children}
+        <LegalFooter />
+      </body>
     </html>
   );
 }

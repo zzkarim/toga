@@ -1,12 +1,14 @@
+> Review branch: Halloween theming and draft legal acceptance are implemented locally. They are **not deployed**. See [review report](deploy/HALLOWEEN-LEGAL-REVIEW.md) before applying the additive migration or publishing draft policies.
+
 # Toga
 
 Peer-to-peer clothing rentals for college students. This launch is restricted to **Georgia Tech (`@gatech.edu`)**, with an explicit founder login exception for `jointoga@gmail.com`.
 
-Next.js 15 / React 19, Prisma 6, Supabase Postgres, private Supabase Storage, and password login with SendGrid email verification/recovery. Hosting target: Vercel with its default HTTPS project URL. No in-app payments.
+Next.js 15 / React 19, Prisma 6, Supabase Postgres, private Supabase Storage, and password login with Gmail SMTP email verification/recovery. Hosting target: Vercel with its default HTTPS project URL. No in-app payments.
 
 ## Launch status
 
-Production URL: **https://toga-ecru.vercel.app**. Vercel is connected to Supabase Postgres and private Storage; production migrations are applied. Hosted routing, database sessions, image upload/download and authorization, domain rejection, and the scheduled job's HTTP response passed verification. SendGrid accepted the admin magic-link test, and the live mobile login form accepts the exact admin exception.
+Production URL: **https://toga-ecru.vercel.app**. Vercel is connected to Supabase Postgres and private Storage; production migrations are applied. Hosted routing, database sessions, image upload/download and authorization, domain rejection, and the scheduled job's HTTP response passed verification. The original SendGrid rollout accepted the admin magic-link test, and the live mobile login form accepts the exact admin exception.
 
 **Not yet cleared for the waitlist:** confirm actual inbox delivery and complete the hosted two-account rental walkthrough with a controlled Georgia Tech inbox. Remove verification records and photo objects afterward and rerun the empty-database check. The database was confirmed empty before verification; temporary login/email records remain during testing. See [deployment instructions](deploy/README.md).
 
@@ -80,7 +82,7 @@ The hosted smoke test verifies real Postgres and Storage access through Vercel, 
 
 Use Gmail SMTP with a Google App Password for `jointoga@gmail.com`; see [Gmail setup](deploy/GMAIL.md). All sending goes through one provider function with plaintext and HTML alternatives. Verify actual Outlook placement after deployment; SMTP acceptance does not prove inbox delivery.
 
-The job endpoint is `POST /api/jobs`, protected by `Authorization: Bearer <CRON_SECRET>`. Run every 15 minutes using [the Supabase Cron template](deploy/supabase-cron.sql). Pending-request expiration also runs during authenticated browsing. Notifications and reminders are atomically queued. Only rate-limit rejections are retried automatically (up to five attempts within 23 hours). Concurrent jobs cannot send the same claimed message. Ambiguous network outcomes are marked **Unknown** for manual checking in SendGrid Email Activity; they are never blindly resent. API acceptance is not confirmation of inbox delivery. The admin email table includes delivery status. Expired sessions/tokens and old sign-in email records are cleaned up by the job.
+The job endpoint is `POST /api/jobs`, protected by `Authorization: Bearer <CRON_SECRET>`. Run every 15 minutes using [the Supabase Cron template](deploy/supabase-cron.sql). Pending-request expiration also runs during authenticated browsing. Notifications and reminders are atomically queued. Explicit temporary SMTP rejections are retried automatically (up to five attempts within 23 hours). Concurrent jobs cannot send the same claimed message. Ambiguous network outcomes are marked **Unknown** for manual checking in the Gmail sender mailbox; they are never blindly resent. API acceptance is not confirmation of inbox delivery. The admin email table includes delivery status. Expired sessions/tokens and old sign-in email records are cleaned up by the job.
 
 ## Files
 
@@ -103,7 +105,7 @@ OTP digests use HMAC-SHA256 with the existing `CRON_SECRET` and a separate purpo
 
 ### Email delivery and diagnosis
 
-The verified sender remains `jointoga@gmail.com` through SendGrid Single Sender. OTP messages are plain text, with the Toga display name, no images or links, and open/click tracking disabled per message. No manual SendGrid settings changes are required. Keep the sender verified and Mail Send permission enabled. SendGrid acceptance is not inbox delivery. Inspect Email Activity using the stored provider message ID for delivered/deferred/bounced events; Gmail Single Sender cannot establish domain-level alignment for Toga and spam filtering can remain. An OTP removes browser switching and link-scanner friction; it does not make mailbox delivery instant.
+The current sender is Toga <jointoga@gmail.com> via Gmail SMTP and an App Password. Both plain-text and minimal HTML parts are sent without tracking. Rental emails contain no website links. SMTP acceptance does not prove Inbox placement. See [Gmail setup](deploy/GMAIL.md).
 
 Vercel logs under `service=toga-auth` distinguish verification request/success/failure/expiry, rate limits, provider request/acceptance/rejection, and ambiguous connection failures. Provider logs include message IDs, HTTP status and request duration, never email addresses, codes, tokens or body text. Authentication emails send immediately and are excluded from the 15-minute rental-job retry queue; ambiguous sends are not automatically duplicated.
 

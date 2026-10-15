@@ -1,0 +1,337 @@
+/* Set TOGA_THEME=classic and rebuild to remove all seasonal color and decoration. */
+.theme-halloween {
+  color-scheme: dark;
+  --cream: var(--background);
+  --cream-card: var(--surface);
+  --cream-deep: var(--surface-raised);
+  --text-soft: var(--text-muted);
+  --burgundy: var(--primary);
+  --burgundy-dark: var(--primary-hover);
+  --burgundy-light: var(--accent);
+  --background: #171316;
+  --surface: #241c22;
+  --surface-raised: #34232b;
+  --text: #f7efdf;
+  --text-muted: #c4b3ac;
+  --primary: #f0ad72;
+  --primary-hover: #ffc48f;
+  --on-primary: #25171b;
+  --accent: #dc9274;
+  --gold: #dbc08b;
+  --gold-soft: #47342b;
+  --border: #69515c;
+  --control-border: #846b77;
+  --error-background: #40202a;
+  --error-text: #ffb5bc;
+  --shadow: 0 18px 48px #08050966;
+  --overlay: #09070bc9;
+}
+.seasonal-decor {
+  display: none;
+}
+.theme-halloween .seasonal-decor {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 290px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.seasonal-decor svg {
+  position: absolute;
+  pointer-events: none;
+}
+.seasonal-moon {
+  width: 78px;
+  right: 3%;
+  top: 115px;
+  color: var(--gold);
+  opacity: 0.18;
+}
+.seasonal-web {
+  width: 95px;
+  left: 0;
+  top: 88px;
+  color: var(--text-muted);
+  opacity: 0.14;
+}
+.seasonal-bat {
+  width: 44px;
+  right: 15%;
+  top: 110px;
+  color: var(--accent);
+  opacity: 0.3;
+  animation: bat-drift 24s ease-in-out infinite;
+}
+.seasonal-ghost {
+  width: 28px;
+  right: 8%;
+  top: 230px;
+  color: var(--text-muted);
+  opacity: 0.22;
+  animation: ghost-float 8s ease-in-out infinite;
+}
+.theme-halloween .header {
+  position: relative;
+  z-index: 2;
+  background: var(--background);
+}
+.theme-halloween main,
+.legal-footer,
+.how-footer {
+  position: relative;
+}
+.theme-halloween .landing {
+  isolation: isolate;
+}
+.theme-halloween .landing::before {
+  content: "";
+  position: absolute;
+  inset: 12% 10%;
+  background: radial-gradient(ellipse, #7a2e2e38, transparent 65%);
+  z-index: -1;
+  pointer-events: none;
+  animation: fog-breathe 10s ease-in-out infinite;
+}
+.theme-halloween .landing-mark {
+  box-shadow: 0 0 65px #dc927424;
+  border: 1px solid var(--border);
+}
+.theme-halloween .brand {
+  color: var(--text);
+}
+.theme-halloween .brand img {
+  box-shadow: 0 0 15px #f0ad721c;
+}
+.theme-halloween .listing-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: transform 0.2s ease;
+}
+.theme-halloween .listing-card:hover {
+  transform: translateY(-3px);
+}
+.theme-halloween .listing-info {
+  padding: 17px;
+}
+.theme-halloween .listing-image {
+  border-radius: 0;
+}
+.theme-halloween .panel,
+.theme-halloween .rental-card {
+  box-shadow: var(--shadow);
+}
+.theme-halloween .button.burgundy:hover {
+  box-shadow: 0 0 0 4px #f0ad7219;
+}
+.theme-halloween .status {
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+.theme-halloween .error {
+  color: var(--error-text);
+}
+input,
+textarea,
+select {
+  color: var(--text);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+:where(input, select, textarea):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.legal-document {
+  width: min(100% - 40px, 780px);
+  margin: 48px auto 80px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.legal-document h1 {
+  line-height: 1.2;
+  font-size: clamp(32px, 5vw, 48px);
+  margin: 20px 0;
+}
+.legal-document h2 {
+  font-size: 25px;
+  margin: 32px 0 12px;
+}
+.legal-document p {
+  margin: 12px 0;
+}
+.legal-document a,
+.legal-check a,
+.fine-print a,
+.safety-tip a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.draft-banner {
+  padding: 12px 16px;
+  background: var(--surface-raised);
+  border-left: 3px solid var(--primary);
+  color: var(--text);
+  font-size: 13px;
+}
+.legal-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 22px 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.legal-check input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin: 3px 0;
+  accent-color: var(--primary);
+}
+.legal-check span {
+  min-width: 0;
+}
+.acceptance {
+  max-width: 650px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.acceptance .text-button {
+  margin-left: 24px;
+}
+.legal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 30px;
+  align-items: center;
+  padding: 28px 6%;
+  border-top: 1px solid var(--border);
+}
+.legal-footer .footer-brand {
+  font:
+    28px Fraunces,
+    serif;
+  text-decoration: none;
+}
+.legal-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 13px;
+}
+.legal-footer p {
+  flex-basis: 100%;
+  font-size: 12px;
+}
+.legal-footer small {
+  color: var(--text-muted);
+}
+.how-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 6%;
+  color: var(--text-muted);
+}
+.safety-tip {
+  margin: 12px 0;
+  font-size: 12px;
+}
+.table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.admin-tabs {
+  flex-wrap: wrap;
+}
+@keyframes ghost-float {
+  50% {
+    transform: translateY(-9px) rotate(4deg);
+  }
+}
+@keyframes bat-drift {
+  0%,
+  70%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.25;
+  }
+  82% {
+    transform: translate(-50px, -12px) rotate(-6deg);
+    opacity: 0.4;
+  }
+  90% {
+    transform: translate(-70px, 0);
+    opacity: 0;
+  }
+  91% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+}
+@keyframes fog-breathe {
+  50% {
+    opacity: 0.5;
+    transform: translateY(6px);
+  }
+}
+@media (max-width: 580px) {
+  .seasonal-web {
+    top: 76px;
+    width: 55px;
+  }
+  .seasonal-moon {
+    top: 98px;
+    width: 48px;
+    right: 3%;
+  }
+  .seasonal-bat {
+    top: 85px;
+    width: 28px;
+    right: 22%;
+  }
+  .seasonal-ghost {
+    display: none;
+  }
+  .theme-halloween .listing-info {
+    padding: 12px;
+  }
+  .legal-footer {
+    padding: 24px 5%;
+  }
+  .legal-document {
+    margin-top: 32px;
+  }
+  .acceptance {
+    padding: 18px;
+  }
+  .legal-check {
+    font-size: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.theme-halloween :is(input, textarea, select),
+.theme-halloween .search-box {
+  border-color: var(--control-border);
+}
