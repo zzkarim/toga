@@ -222,24 +222,24 @@ export function ProfileForm({ user, onSubmit, onLogout, busy, onUpload }) {
               />
             )}
           </Field>
-          <Field label="Payment information">
-            {(id) => (
-              <textarea
-                id={id}
-                rows={3}
-                maxLength={500}
-                aria-describedby="payment-help"
-                placeholder="Cash at pickup, Venmo @username, Zelle, or PayPal"
-                value={form.paymentInfo || ""}
-                onChange={(e) => set("paymentInfo", e.target.value)}
-              />
-            )}
-          </Field>
-          <p id="payment-help">
-            Tell renters how you'd like to be paid. For example: Venmo
-            @username, Zelle, PayPal, or cash at pickup.
-          </p>
         </div>
+        <Field label="Payment information">
+          {(id) => (
+            <textarea
+              id={id}
+              rows={3}
+              maxLength={500}
+              aria-describedby="payment-help"
+              placeholder="Cash at pickup, Venmo @username, Zelle, or PayPal"
+              value={form.paymentInfo || ""}
+              onChange={(e) => set("paymentInfo", e.target.value)}
+            />
+          )}
+        </Field>
+        <p id="payment-help">
+          Tell renters how you'd like to be paid. For example: Venmo @username,
+          Zelle, PayPal, or cash at pickup.
+        </p>
         <div className="field">
           <span>Profile photo</span>
           <PhotoUpload
