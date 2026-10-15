@@ -1,8 +1,9 @@
+import { legalPublicationProblems } from "../lib/legal-config.mjs";
 import { isAllowedEmail } from "../lib/campus.mjs";
 try {
   process.loadEnvFile(".env.production.local");
 } catch {}
-const problems = [];
+const problems = legalPublicationProblems();
 if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(process.env.EMAIL_FROM || ""))
   problems.push(
     "EMAIL_FROM must be the exact verified sender email, without a display name.",

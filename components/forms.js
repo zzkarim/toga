@@ -138,7 +138,7 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
               min="0"
               max="10000"
               step="0.01"
-              value={form.retailValue || ""}
+              value={form.retailValue ?? ""}
               onChange={(e) => set("retailValue", e.target.value)}
             />
           )}

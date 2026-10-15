@@ -1,5 +1,6 @@
 "use client";
-import { needsAcceptance } from "../lib/legal.mjs";
+import SeasonalDecor from "./seasonal-decor";
+import { needsAcceptance, TERMS_VERSION } from "../lib/legal.mjs";
 import AuthForm from "../components/auth-form";
 import { useEffect, useState } from "react";
 import {
@@ -310,9 +311,11 @@ export default function Home() {
             </div>
           </>
         )}
+        <SeasonalDecor variant="nav" />
       </header>
       {!user ? (
         <main className="landing">
+          <SeasonalDecor variant="hero" />
           <div className="landing-mark">
             <img src="/logo.png" alt="Toga" />
           </div>
@@ -338,7 +341,11 @@ export default function Home() {
       ) : (
         <main
           className={
-            view === "browse" || view === "saved" ? "marketplace" : "dashboard"
+            view === "browse" || view === "saved"
+              ? "marketplace"
+              : view === "admin"
+                ? "dashboard admin-dashboard"
+                : "dashboard"
           }
         >
           {error && !modal && (
@@ -485,6 +492,7 @@ export default function Home() {
               </div>
               {!visible.length && (
                 <div className="empty-state">
+                  <SeasonalDecor variant="empty" />
                   <Shirt size={30} />
                   <h2>
                     {listings.length
@@ -629,6 +637,7 @@ export default function Home() {
                   ))}
                   {!mine.length && (
                     <div className="empty-state">
+                      <SeasonalDecor variant="empty" />
                       <Shirt />
                       <h2>No listings yet</h2>
                       <p>
@@ -862,6 +871,7 @@ export default function Home() {
                   ))}
                   {!shownRentals.length && (
                     <div className="empty-state">
+                      <SeasonalDecor variant="empty" />
                       <CalendarDays />
                       <h2>
                         {rentalTab === "incoming"
@@ -978,9 +988,9 @@ export default function Home() {
                                       row.title,
                                       row.ownerId,
                                       row.status,
-                                      row.retailValue
+                                      row.retailValue != null
                                         ? money(row.retailValue)
-                                        : "Not provided",
+                                        : "Not specified",
                                     ]
                                   : adminTab === "requests"
                                     ? [
@@ -990,7 +1000,7 @@ export default function Home() {
                                         row.renterId,
                                         `${date(row.startDate)} – ${date(row.endDate)}`,
                                         row.renterAcknowledgedAt
-                                          ? `${row.renterAcknowledgedTermsVersion} · ${new Date(row.renterAcknowledgedAt).toISOString()} · ${row.renterAcknowledgedReplacementValue == null ? "Amount not recorded" : money(row.renterAcknowledgedReplacementValue)}`
+                                          ? `${row.renterAcknowledgedTermsVersion} · ${new Date(row.renterAcknowledgedAt).toISOString()} · ${row.renterAcknowledgedReplacementValue == null ? (row.renterAcknowledgedTermsVersion === TERMS_VERSION ? "Not specified" : "Amount not recorded") : money(row.renterAcknowledgedReplacementValue)}`
                                           : "Not recorded",
                                       ]
                                     : adminTab === "reports"

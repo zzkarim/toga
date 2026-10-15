@@ -1,4 +1,6 @@
 "use client";
+import { CONTACT_EMAIL } from "../lib/contact.mjs";
+import SeasonalDecor from "./seasonal-decor";
 import { useEffect, useRef, useState } from "react";
 import { api, Field } from "./ui";
 import {
@@ -88,6 +90,7 @@ export default function AuthForm({ onSuccess, onBusy }) {
   if (pending)
     return (
       <form
+        className="seasonal-auth"
         onSubmit={(e) => {
           e.preventDefault();
           run(async () => {
@@ -104,6 +107,7 @@ export default function AuthForm({ onSuccess, onBusy }) {
           });
         }}
       >
+        <SeasonalDecor variant="auth" />
         <h3>Enter your code</h3>
         <p>
           A six-digit code was requested for <strong>{pending.email}</strong>.
@@ -189,9 +193,9 @@ export default function AuthForm({ onSuccess, onBusy }) {
         </div>
         <p className="muted">
           By continuing you agree to our <a href="/terms">Terms</a> and{" "}
-          <a href="/privacy">Privacy Policy</a>. Add jointoga@gmail.com to your
+          <a href="/privacy">Privacy Policy</a>. Add {CONTACT_EMAIL} to your
           contacts so Toga emails reach your inbox. Check Junk/Spam for “Your
-          Toga verification code” from jointoga@gmail.com. Mark it as not junk.
+          Toga verification code” from {CONTACT_EMAIL}. Mark it as not junk.
           Resending replaces the previous code.
         </p>
         {preview && (
@@ -203,6 +207,7 @@ export default function AuthForm({ onSuccess, onBusy }) {
     );
   return (
     <form
+      className="seasonal-auth"
       onSubmit={(e) => {
         e.preventDefault();
         run(async () => {
@@ -219,6 +224,7 @@ export default function AuthForm({ onSuccess, onBusy }) {
         });
       }}
     >
+      <SeasonalDecor variant="auth" />
       <p>
         {mode === "code"
           ? "Sign up or log in with a six-digit email code. You’ll stay signed in on this browser."
@@ -279,7 +285,7 @@ export default function AuthForm({ onSuccess, onBusy }) {
       </button>
       <p className="muted">
         By continuing you agree to our <a href="/terms">Terms</a> and{" "}
-        <a href="/privacy">Privacy Policy</a>. Add jointoga@gmail.com to your
+        <a href="/privacy">Privacy Policy</a>. Add {CONTACT_EMAIL} to your
         contacts so Toga emails reach your inbox. Use your Georgia Tech email
         address. Check Junk/Spam if your email doesn’t arrive.
       </p>

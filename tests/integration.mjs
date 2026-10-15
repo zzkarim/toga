@@ -170,7 +170,7 @@ try {
   );
   items.push(listing.id);
   assert.equal(listing.status, "Active");
-  assert.equal(listing.retailValue, 0);
+  assert.equal(listing.retailValue, null);
   await call("listings", "POST", data, "renter", 400);
   await call(
     `listings/${listing.id}`,

@@ -1,22 +1,22 @@
 import LegalDocument from "../../components/legal-document";
 import { PRIVACY_VERSION } from "../../lib/legal.mjs";
-// TODO before publication: [ENTITY NAME], [CONTACT EMAIL], [RETENTION SCHEDULE].
+import { CONTACT_EMAIL, LEGAL_OPERATOR } from "../../lib/legal-config.mjs";
 export default function Privacy() {
   return (
     <LegalDocument title="Privacy Policy" version={PRIVACY_VERSION}>
       <section>
         <h2>Information we collect</h2>
         <p>
-          [ENTITY NAME] collects your email, name, phone number, optional class
-          year and profile photo, payment instructions you choose to share,
-          listings and photos, rental requests and dates, ratings, condition
-          photos, problem reports, and communications you send to support. The
-          current app has no private chat feature; communications submitted in
-          reports and support messages may be retained. We also store password
-          hashes when you set a password, verification records, session
-          identifiers, legal acceptance records, and operational delivery and
-          security logs. Do not put bank credentials or other sensitive secrets
-          in payment instructions.
+          The individual operator of Toga, {LEGAL_OPERATOR}, collects your
+          email, name, phone number, optional class year and profile photo,
+          payment instructions you choose to share, listings and photos, rental
+          requests and dates, ratings, condition photos, problem reports, and
+          communications you send to support. The current app has no private
+          chat feature; communications submitted in reports and support messages
+          may be retained. We also store password hashes when you set a
+          password, verification records, session identifiers, legal acceptance
+          records, and operational delivery and security logs. Do not put bank
+          credentials or other sensitive secrets in payment instructions.
         </p>
       </section>
       <section>
@@ -38,12 +38,11 @@ export default function Privacy() {
           Supabase provides hosted Postgres and image storage; Vercel hosts the
           application. Google/Gmail currently sends authentication and rental
           emails. SendGrid was previously used for email delivery and may retain
-          historical delivery records under its own policies. The unreleased SMS
-          implementation is not active in this pilot; if enabled, Twilio would
-          process phone verification and SMS notifications under a separately
-          disclosed consent flow. Google Fonts serves the interface fonts. These
-          providers process relevant data to provide their services and may
-          process it outside your state or country.
+          historical delivery records under its own policies. SMS verification
+          and notifications are not active in this pilot. Profile phone numbers
+          are user-provided, not independently verified. Google Fonts serves the
+          interface fonts. These providers process relevant data to provide
+          their services and may process it outside your state or country.
         </p>
       </section>
       <section>
@@ -65,25 +64,33 @@ export default function Privacy() {
         <p>
           We retain account and marketplace records while needed to operate the
           service, handle disputes, prevent abuse, and meet legal obligations.
-          Expired verification and session records are periodically removed.
+          When the maintenance job runs, expired sessions and sign-in tokens are
+          removed, expired rate-limit records are removed, and verification-code
+          records are removed once they have been expired for more than one day.
+          Stored sign-in-link emails older than 15 minutes are removed. These
+          are job-based cleanups, not exact-time deletion guarantees.
           Authentication email content is omitted from stored email records.
           Other operational records and images currently require reviewed
-          deletion; we do not promise automatic deletion after a fixed period. A
-          detailed [RETENTION SCHEDULE], including backups and provider
-          retention, must be finalized before publication. Legal requirements or
-          unresolved disputes may require limited retention after an account
-          closes.
+          deletion; we do not promise automatic deletion after a fixed period.
+          Account, payment-instruction, listing, rental, rating, report,
+          notification, and legal-acceptance records have no automatic age-based
+          deletion today. Deletion requests are reviewed by the operator,
+          including associated images and any need to preserve dispute or
+          security records. Backups and provider records may persist under
+          provider policies; immediate removal from every backup is not
+          promised. Legal requirements or unresolved disputes may require
+          limited retention after an account closes.
         </p>
       </section>
       <section id="contact">
         <h2>Your choices and contact</h2>
         <p>
-          Request access, correction, or deletion by emailing [CONTACT EMAIL].
+          Request access, correction, or deletion by emailing {CONTACT_EMAIL}.
           We may ask you to verify account ownership before acting. You can edit
           your profile and remove available listings through Toga. Deleting an
           account may affect ongoing rentals; we will explain any information
           that must be retained. Questions about this policy or privacy
-          practices should also go to [CONTACT EMAIL].
+          practices should also go to {CONTACT_EMAIL}.
         </p>
       </section>
       <section>

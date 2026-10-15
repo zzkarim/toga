@@ -1,5 +1,5 @@
 import LegalFooter from "../components/legal-footer";
-import SeasonalDecor from "../components/seasonal-decor";
+import { SeasonalProvider } from "../components/seasonal-decor";
 import "./seasonal.css";
 import "./globals.css";
 import { DESCRIPTION } from "../lib/campus.mjs";
@@ -32,9 +32,10 @@ export default function RootLayout({ children }) {
             : "theme-halloween"
         }
       >
-        <SeasonalDecor />
-        {children}
-        <LegalFooter />
+        <SeasonalProvider enabled={process.env.TOGA_THEME !== "classic"}>
+          {children}
+          <LegalFooter />
+        </SeasonalProvider>
       </body>
     </html>
   );

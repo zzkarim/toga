@@ -26,52 +26,6 @@
   --shadow: 0 18px 48px #08050966;
   --overlay: #09070bc9;
 }
-.seasonal-decor {
-  display: none;
-}
-.theme-halloween .seasonal-decor {
-  display: block;
-  position: absolute;
-  inset: 0 0 auto;
-  height: 290px;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-}
-.seasonal-decor svg {
-  position: absolute;
-  pointer-events: none;
-}
-.seasonal-moon {
-  width: 78px;
-  right: 3%;
-  top: 115px;
-  color: var(--gold);
-  opacity: 0.18;
-}
-.seasonal-web {
-  width: 95px;
-  left: 0;
-  top: 88px;
-  color: var(--text-muted);
-  opacity: 0.14;
-}
-.seasonal-bat {
-  width: 44px;
-  right: 15%;
-  top: 110px;
-  color: var(--accent);
-  opacity: 0.3;
-  animation: bat-drift 24s ease-in-out infinite;
-}
-.seasonal-ghost {
-  width: 28px;
-  right: 8%;
-  top: 230px;
-  color: var(--text-muted);
-  opacity: 0.22;
-  animation: ghost-float 8s ease-in-out infinite;
-}
 .theme-halloween .header {
   position: relative;
   z-index: 2;
@@ -256,31 +210,6 @@ textarea::placeholder {
 .admin-tabs {
   flex-wrap: wrap;
 }
-@keyframes ghost-float {
-  50% {
-    transform: translateY(-9px) rotate(4deg);
-  }
-}
-@keyframes bat-drift {
-  0%,
-  70%,
-  100% {
-    transform: translate(0, 0);
-    opacity: 0.25;
-  }
-  82% {
-    transform: translate(-50px, -12px) rotate(-6deg);
-    opacity: 0.4;
-  }
-  90% {
-    transform: translate(-70px, 0);
-    opacity: 0;
-  }
-  91% {
-    transform: translate(0, 0);
-    opacity: 0;
-  }
-}
 @keyframes fog-breathe {
   50% {
     opacity: 0.5;
@@ -288,23 +217,6 @@ textarea::placeholder {
   }
 }
 @media (max-width: 580px) {
-  .seasonal-web {
-    top: 76px;
-    width: 55px;
-  }
-  .seasonal-moon {
-    top: 98px;
-    width: 48px;
-    right: 3%;
-  }
-  .seasonal-bat {
-    top: 85px;
-    width: 28px;
-    right: 22%;
-  }
-  .seasonal-ghost {
-    display: none;
-  }
   .theme-halloween .listing-info {
     padding: 12px;
   }
@@ -334,4 +246,346 @@ textarea::placeholder {
 .theme-halloween :is(input, textarea, select),
 .theme-halloween .search-box {
   border-color: var(--control-border);
+}
+
+/* Decorations occupy page margins or dedicated, empty illustration space. */
+.halloween-decor {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+  inset: 0;
+  isolation: isolate;
+}
+.halloween-decor *,
+.halloween-glyph {
+  pointer-events: none;
+}
+.halloween-glyph {
+  position: absolute;
+  width: 60px;
+  color: var(--primary);
+}
+.halloween-moon {
+  width: 110px;
+  right: 8%;
+  top: 20px;
+  color: var(--gold);
+  opacity: 0.85;
+}
+.halloween-web {
+  width: 110px;
+  left: 0;
+  top: 0;
+  color: var(--text-muted);
+  opacity: 0.35;
+}
+.halloween-spider {
+  width: 48px;
+  left: 37px;
+  top: 30px;
+  color: var(--accent);
+  transform-origin: top;
+  animation: spider-sway 13s ease-in-out -4s infinite;
+}
+.halloween-bat {
+  width: 40px;
+  right: 20%;
+  top: 35px;
+  color: var(--accent);
+  animation: bat-flight 29s ease-in-out -7s infinite;
+}
+.bat-two {
+  width: 27px;
+  right: 15%;
+  top: 70px;
+  animation-duration: 37s;
+  animation-delay: -11s;
+}
+.bat-three {
+  width: 22px;
+  right: 24%;
+  top: 18px;
+  animation-duration: 43s;
+  animation-delay: -3s;
+}
+.halloween-ghost {
+  color: var(--text);
+  opacity: 0.6;
+  width: 55px;
+  animation: ghost-hover 9s ease-in-out -2s infinite;
+}
+.ghost-one {
+  left: 9%;
+  top: 35%;
+}
+.ghost-two {
+  right: 8%;
+  top: 55%;
+  width: 34px;
+  animation-duration: 13s;
+  animation-delay: -6s;
+}
+.ghost-three {
+  left: 17%;
+  bottom: 9%;
+  width: 25px;
+  animation-duration: 11s;
+  animation-delay: -4s;
+  opacity: 0.35;
+}
+.halloween-pumpkin {
+  bottom: 24px;
+  right: 13%;
+  width: 70px;
+  color: #d78343;
+}
+.pumpkin-light {
+  animation: pumpkin-glow 7s ease-in-out -3s infinite;
+}
+.halloween-fog {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 65px;
+  background:
+    radial-gradient(ellipse at 20% 90%, #dc927425, transparent 60%),
+    radial-gradient(ellipse at 75% 100%, #e4d2a01c, transparent 65%);
+  animation: fog-drift 21s ease-in-out -8s infinite;
+}
+.theme-halloween .landing {
+  position: relative;
+}
+.halloween-hero {
+  z-index: -1;
+}
+.theme-halloween .header {
+  box-shadow: 0 1px 24px #d7834315;
+}
+.halloween-nav {
+  z-index: -1;
+}
+.halloween-nav .halloween-web {
+  width: 42px;
+  opacity: 0.3;
+}
+.halloween-nav .halloween-pumpkin {
+  width: 25px;
+  right: 8px;
+  bottom: 2px;
+}
+.theme-halloween .header nav button.active {
+  border-color: var(--primary);
+}
+.theme-halloween .empty-state {
+  position: relative;
+  padding-top: 150px;
+}
+.halloween-empty {
+  height: 140px;
+  max-width: 290px;
+  margin: 0 auto;
+}
+.halloween-empty .halloween-moon {
+  width: 78px;
+  right: 22%;
+  top: 5px;
+  opacity: 0.55;
+}
+.halloween-empty .ghost-one {
+  width: 65px;
+  left: 30%;
+  top: 40px;
+}
+.halloween-empty .ghost-two {
+  top: 55px;
+  right: 19%;
+  width: 30px;
+}
+.halloween-empty .ghost-three,
+.halloween-empty .halloween-spider {
+  display: none;
+}
+.halloween-empty .halloween-pumpkin {
+  width: 48px;
+  bottom: 5px;
+  right: 30%;
+}
+.halloween-empty .halloween-web {
+  width: 55px;
+}
+.seasonal-auth {
+  position: relative;
+}
+.theme-halloween .seasonal-auth {
+  padding-top: 110px;
+}
+.halloween-auth {
+  height: 100px;
+  border-radius: 12px;
+  background: radial-gradient(ellipse at 75% 40%, #a854542b, transparent 65%);
+}
+.halloween-auth .halloween-moon {
+  width: 80px;
+  right: 20%;
+  top: 0;
+}
+.halloween-auth .halloween-web {
+  width: 65px;
+}
+.halloween-auth .halloween-spider {
+  width: 35px;
+  left: 20px;
+  top: 17px;
+}
+.halloween-auth .ghost-one {
+  width: 48px;
+  top: 20px;
+  left: 20%;
+}
+.halloween-auth .ghost-two {
+  width: 26px;
+  top: 55px;
+  right: 12%;
+}
+.halloween-auth .ghost-three {
+  display: none;
+}
+.halloween-auth .halloween-pumpkin {
+  width: 40px;
+  bottom: 3px;
+  right: 39%;
+}
+.halloween-auth .halloween-bat {
+  top: 5px;
+}
+.theme-halloween .button {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.theme-halloween .button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 20px #d7834330;
+}
+.theme-halloween .listing-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 12px 32px #d7834320;
+}
+.theme-halloween :is(input, textarea, select):focus-visible {
+  box-shadow: 0 0 0 5px #d7834318;
+}
+.admin-dashboard .halloween-decor * {
+  animation: none;
+}
+@keyframes bat-flight {
+  0%,
+  65%,
+  100% {
+    transform: translate(0, 0) rotate(-8deg);
+    opacity: 0.65;
+  }
+  70% {
+    transform: translate(-30px, -8px) rotate(8deg);
+    opacity: 0.8;
+  }
+  79% {
+    transform: translate(-130px, 22px) rotate(-10deg);
+    opacity: 0.55;
+  }
+  87% {
+    transform: translate(-260px, -15px) rotate(4deg);
+    opacity: 0;
+  }
+  88%,
+  94% {
+    transform: translate(30px, 8px);
+    opacity: 0;
+  }
+}
+@keyframes ghost-hover {
+  50% {
+    transform: translateY(-10px) rotate(5deg);
+    opacity: 0.8;
+  }
+}
+@keyframes spider-sway {
+  50% {
+    transform: rotate(6deg) translateY(4px);
+  }
+}
+@keyframes pumpkin-glow {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  45% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.8;
+  }
+}
+@keyframes fog-drift {
+  50% {
+    transform: translateX(12px);
+    opacity: 0.5;
+  }
+}
+@media (max-width: 580px) {
+  .halloween-hero .halloween-moon {
+    width: 64px;
+    top: 12px;
+    right: 4%;
+  }
+  .halloween-hero .halloween-web {
+    width: 65px;
+  }
+  .halloween-hero .ghost-one {
+    width: 30px;
+    left: 4%;
+    top: 23%;
+  }
+  .halloween-hero .halloween-pumpkin {
+    width: 42px;
+    bottom: 20px;
+    right: 7%;
+  }
+  .halloween-hero .ghost-two,
+  .halloween-hero .ghost-three,
+  .bat-three {
+    display: none;
+  }
+  .halloween-hero .halloween-spider {
+    width: 30px;
+    left: 20px;
+    top: 20px;
+  }
+  .halloween-bat {
+    width: 28px;
+  }
+  .bat-two {
+    display: none;
+  }
+  .halloween-fog {
+    height: 38px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-halloween .button:hover,
+  .theme-halloween .listing-card:hover {
+    transform: none;
+  }
+}
+.legal-toc {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  margin: 24px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+}
+.legal-document section {
+  scroll-margin-top: 24px;
 }

@@ -37,7 +37,7 @@ try {
   for (const path of ["terms", "privacy", "safety"]) {
     const r = await fetch(base + "/" + path);
     assert.equal(r.status, 200);
-    assert.match(await r.text(), /DRAFT: pending attorney review/);
+    assert.match(await r.text(), /DRAFT/);
   }
   for (const [i, id] of ids.entries()) {
     await db.user.create({
@@ -177,6 +177,42 @@ try {
   assert.ok(rental.renterAcknowledgedAt);
   assert.equal(rental.renterAcknowledgedReplacementValue, 80);
   assert.equal(rental.renterAcknowledgedTermsVersion, TERMS_VERSION);
+  // Exercise database/API reservation and snapshot semantics for unspecified and explicit zero.
+  await db.rentalRequest.deleteMany({ where: { listingId } });
+  for (const amount of [null, 0]) {
+    await db.listing.update({
+      where: { id: listingId },
+      data: { retailValue: amount, status: "Active" },
+    });
+    const wrong = await call(
+      "requests",
+      "POST",
+      {
+        ...req,
+        renterAcknowledged: true,
+        termsVersion: TERMS_VERSION,
+        replacementValue: amount === null ? 0 : null,
+      },
+      cookies[1],
+    );
+    assert.equal(wrong.status, 400);
+    const result = await call(
+      "requests",
+      "POST",
+      {
+        ...req,
+        renterAcknowledged: true,
+        termsVersion: TERMS_VERSION,
+        replacementValue: amount,
+      },
+      cookies[1],
+    );
+    assert.equal(result.status, 200);
+    const saved = await db.rentalRequest.findFirst({ where: { listingId } });
+    assert.equal(saved.renterAcknowledgedReplacementValue, amount);
+    assert.ok(saved.renterAcknowledgedAt);
+    await db.rentalRequest.deleteMany({ where: { listingId } });
+  }
   await db.user.update({
     where: { id: ids[1] },
     data: { privacyVersion: "old" },

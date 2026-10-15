@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { api } from "./ui";
 import { ACCEPTANCE, TERMS_VERSION, PRIVACY_VERSION } from "../lib/legal.mjs";
-export default function AcceptTerms() {
+export default function AcceptTerms({ draft = true }) {
   const [accepted, setAccepted] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -12,7 +12,7 @@ export default function AcceptTerms() {
       <p>
         Please review the current terms, privacy policy, and age requirement.
       </p>
-      <p className="draft-banner">DRAFT: pending attorney review.</p>
+      {draft && <p className="draft-banner">DRAFT: pending attorney review.</p>}
       <p>
         <a href="/terms">Terms of Service</a> ·{" "}
         <a href="/privacy">Privacy Policy</a> · <a href="/safety">Safety</a>

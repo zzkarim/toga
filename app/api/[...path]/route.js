@@ -1,3 +1,5 @@
+import { legalPublicationProblems } from "../../../lib/legal-config.mjs";
+import { replacementValue } from "../../../lib/replacement-value.mjs";
 import {
   TERMS_VERSION,
   PRIVACY_VERSION,
@@ -145,16 +147,14 @@ async function listingData(body, userId) {
     !sizes.includes(size)
   )
     fail("Choose a category, condition, and size.");
-  const price = Number(body.price),
-    retailValue = Number(body.retailValue || 0);
-  if (
-    !Number.isFinite(price) ||
-    price <= 0 ||
-    price > 1000 ||
-    !Number.isFinite(retailValue) ||
-    retailValue < 0 ||
-    retailValue > 10000
-  )
+  const price = Number(body.price);
+  let retailValue;
+  try {
+    retailValue = replacementValue(body.retailValue);
+  } catch (error) {
+    fail(error.message);
+  }
+  if (!Number.isFinite(price) || price <= 0 || price > 1000)
     fail("Enter valid rental and replacement values.");
   if (!Array.isArray(photos) || photos.length < 1 || photos.length > 4)
     fail("Add between one and four photos.");
@@ -166,7 +166,7 @@ async function listingData(body, userId) {
     size,
     condition,
     price: Math.round(price * 100) / 100,
-    retailValue: Math.round(retailValue * 100) / 100,
+    retailValue,
     lenderConfirmedAt: new Date(),
     photos: JSON.stringify(photos),
     status: "Active",
@@ -454,6 +454,14 @@ async function handle(req, ctx) {
     return { ok: true };
   }
   if (route === "legal/accept" && method === "POST") {
+    if (
+      process.env.NODE_ENV === "production" &&
+      legalPublicationProblems().length
+    )
+      fail(
+        "Legal documents are awaiting publication review. Please try again later.",
+        503,
+      );
     const user = await currentUser();
     if (!user) fail("Please sign in to continue.", 401);
     if (
@@ -653,8 +661,7 @@ async function handle(req, ctx) {
           renterId: u.id,
           pricePerDay: l.price,
           renterAcknowledgedAt: new Date(),
-          renterAcknowledgedReplacementValue:
-            Math.round(l.retailValue * 100) / 100,
+          renterAcknowledgedReplacementValue: l.retailValue,
           renterAcknowledgedTermsVersion: TERMS_VERSION,
           ...dates,
         },

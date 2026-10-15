@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL } from "../../lib/legal-config.mjs";
 import LegalDocument from "../../components/legal-document";
 export default function Safety() {
   return (
@@ -33,9 +34,10 @@ export default function Safety() {
         <h2>Report problems promptly</h2>
         <p>
           Use “Report a problem” on the rental and include relevant photos. Toga
-          provides good-faith mediation only and does not guarantee outcomes.
-          Toga is not a party to rentals and does not provide insurance or
-          emergency services.
+          may help users communicate in good faith and does not guarantee
+          outcomes. For safety, support, or account issues, contact{" "}
+          {CONTACT_EMAIL}. Toga is not a party to rentals and does not provide
+          insurance or emergency services.
         </p>
       </section>
     </LegalDocument>

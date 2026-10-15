@@ -23,3 +23,8 @@ test("terms gate requires dated adult acceptance of both current documents", () 
   assert.match(renterAcknowledgement(0), /\$0\.00/);
   assert.match(renterAcknowledgement(125.5), /\$125\.50/);
 });
+
+test("missing replacement values never promise a zero-dollar amount", () => {
+  assert.match(renterAcknowledgement(null), /Not specified/);
+  assert.doesNotMatch(renterAcknowledgement(null), /\$0/);
+});

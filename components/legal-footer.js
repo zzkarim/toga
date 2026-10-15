@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL } from "../lib/legal-config.mjs";
 export default function LegalFooter() {
   return (
     <footer className="legal-footer">
@@ -11,7 +12,7 @@ export default function LegalFooter() {
         <a href="/privacy#contact">Contact</a>
       </nav>
       <p>Toga is not affiliated with or endorsed by Georgia Tech.</p>
-      <small>Contact: [CONTACT EMAIL]</small>
+      <small>Contact: {CONTACT_EMAIL}</small>
     </footer>
   );
 }
