@@ -1,3 +1,4 @@
+import { notificationMail } from "../../../lib/notification-mail.mjs";
 import { emailConfigured } from "../../../lib/mail-provider.mjs";
 import { recordRentalActivity } from "../../../lib/rental-activity.mjs";
 import { paymentInformation } from "../../../lib/payment.mjs";
@@ -615,8 +616,11 @@ async function handle(req, ctx) {
         data: {
           id: `request-${rental.id}-pending`,
           to: l.owner.email,
-          subject: "New rental request · Toga",
-          text: `${u.name} requested ${l.title}. Accept or decline within 48 hours: ${process.env.APP_URL}/?view=rentals`,
+          ...notificationMail({
+            kind: "request",
+            name: u.name,
+            title: l.title,
+          }),
         },
       });
     });
@@ -794,8 +798,11 @@ async function handle(req, ctx) {
           data: {
             id: `request-${r.id}-${action}`,
             to: recipient.email,
-            subject: `Rental ${next.requestStatus.toLowerCase()} · Toga`,
-            text: `${r.listing.title}: ${next.requestStatus}. See details: ${process.env.APP_URL}/?view=rentals`,
+            ...notificationMail({
+              kind: "status",
+              title: r.listing.title,
+              status: next.requestStatus,
+            }),
           },
         });
       }
