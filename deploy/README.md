@@ -20,7 +20,9 @@ Copy `.env.production.example` to `.env.production.local` and populate it locall
 | `DIRECT_URL` | Supabase session-pooler URI (port 5432) or direct IPv6 URI, with `schema=toga&sslmode=require`; used for migrations. |
 | `APP_URL` | Exact canonical HTTPS Vercel origin, with no path or trailing slash. |
 | `ADMIN_EMAIL` | `jointoga@gmail.com`; this exact address has an explicit login exception. Admin role is refreshed at sign-in. |
-| `SENDGRID_API_KEY` | Server-only SendGrid API key. |
+| `EMAIL_PROVIDER` | `gmail`. |
+| `GMAIL_USER` | `jointoga@gmail.com`. |
+| `GMAIL_APP_PASSWORD` | Server-only Google App Password, entered using the local secrets script. |
 | `EMAIL_FROM` | Your exact Single Sender verified email address, without a display name. |
 | `DEV_EMAIL_PREVIEW` | `false`. |
 | `CRON_SECRET` | At least 32 random characters. |
@@ -31,7 +33,7 @@ Copy `.env.production.example` to `.env.production.local` and populate it locall
 
 Use the actual pooler host shown in Supabase's **Connect** panel. URL-encode the database password. Keep all credentials in environment settings, never in chat, source code, or command-line arguments.
 
-Complete [SendGrid Single Sender Verification](SENDGRID.md) before opening the waitlist. The app always sends with the name Toga. No custom web domain is needed. Test delivery to real Georgia Tech accounts; single-sender verification does not configure SPF/DKIM for a domain you do not control. This app retains its custom magic-link auth and uses Supabase for Postgres/Storage only.
+Complete [Gmail SMTP setup](GMAIL.md) before deploying the Gmail release. Test real delivery and Inbox/Junk placement at Georgia Tech. This app retains its custom email-code/password auth and uses Supabase for Postgres/Storage only.
 
 ## 3. Apply migrations and set up storage
 

@@ -78,7 +78,7 @@ The hosted smoke test verifies real Postgres and Storage access through Vercel, 
 
 ## Email and jobs
 
-Use SendGrid Single Sender Verification with an email address you own. Set `SENDGRID_API_KEY` and set `EMAIL_FROM` to that exact verified email address (no display name); the app supplies **Toga** as the display name. See [sender setup](deploy/SENDGRID.md). No website domain purchase is required. Verify delivery to actual Georgia Tech inboxes before launch.
+Use Gmail SMTP with a Google App Password for `jointoga@gmail.com`; see [Gmail setup](deploy/GMAIL.md). All sending goes through one provider function with plaintext and HTML alternatives. Verify actual Outlook placement after deployment; SMTP acceptance does not prove inbox delivery.
 
 The job endpoint is `POST /api/jobs`, protected by `Authorization: Bearer <CRON_SECRET>`. Run every 15 minutes using [the Supabase Cron template](deploy/supabase-cron.sql). Pending-request expiration also runs during authenticated browsing. Notifications and reminders are atomically queued. Only rate-limit rejections are retried automatically (up to five attempts within 23 hours). Concurrent jobs cannot send the same claimed message. Ambiguous network outcomes are marked **Unknown** for manual checking in SendGrid Email Activity; they are never blindly resent. API acceptance is not confirmation of inbox delivery. The admin email table includes delivery status. Expired sessions/tokens and old sign-in email records are cleaned up by the job.
 

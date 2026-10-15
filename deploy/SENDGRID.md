@@ -1,3 +1,5 @@
+> Superseded by Gmail SMTP. See [Gmail setup](GMAIL.md). These notes document the previous provider.
+
 # SendGrid Single Sender setup
 
 1. In the SendGrid dashboard, open **Settings → Sender Authentication**.

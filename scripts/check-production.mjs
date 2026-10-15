@@ -12,7 +12,9 @@ for (const key of [
   "DIRECT_URL",
   "APP_URL",
   "ADMIN_EMAIL",
-  "SENDGRID_API_KEY",
+  "EMAIL_PROVIDER",
+  "GMAIL_USER",
+  "GMAIL_APP_PASSWORD",
   "EMAIL_FROM",
   "CRON_SECRET",
   "SUPABASE_URL",
@@ -66,6 +68,18 @@ for (const key of ["DATABASE_URL", "DIRECT_URL"])
       `${key} must use Postgres, schema=toga, and sslmode=require.`,
     );
   }
+
+if (
+  process.env.EMAIL_PROVIDER !== "gmail" ||
+  process.env.GMAIL_USER !== "jointoga@gmail.com" ||
+  process.env.EMAIL_FROM !== process.env.GMAIL_USER ||
+  !/^[a-zA-Z]{16}$/.test(process.env.GMAIL_APP_PASSWORD || "")
+) {
+  problems.push(
+    "Configure Gmail SMTP with the matching jointoga@gmail.com sender and a 16-letter App Password.",
+  );
+}
+
 if (problems.length) {
   console.error(
     "Production configuration is incomplete:\n" +

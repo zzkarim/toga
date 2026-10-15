@@ -1,3 +1,5 @@
+import { emailConfigured } from "../../../lib/mail-provider.mjs";
+import { recordRentalActivity } from "../../../lib/rental-activity.mjs";
 import { paymentInformation } from "../../../lib/payment.mjs";
 import { authLog } from "../../../lib/auth-log.mjs";
 import {
@@ -192,7 +194,7 @@ async function handle(req, ctx) {
     const preview =
       process.env.NODE_ENV !== "production" &&
       process.env.DEV_EMAIL_PREVIEW === "true";
-    if (!process.env.SENDGRID_API_KEY && !preview)
+    if (!emailConfigured() && !preview)
       fail(
         "Email verification is temporarily unavailable. Please try again shortly.",
         503,
@@ -354,7 +356,7 @@ async function handle(req, ctx) {
     const email = normalizeEmail(body.email);
     if (!isAllowedEmail(email)) fail(DOMAIN_ERROR);
     if (
-      !process.env.SENDGRID_API_KEY &&
+      !emailConfigured() &&
       !(
         process.env.NODE_ENV !== "production" &&
         process.env.DEV_EMAIL_PREVIEW === "true"
@@ -603,6 +605,12 @@ async function handle(req, ctx) {
         },
         include: { listing: { include: { owner: true } } },
       });
+      await recordRentalActivity(tx, {
+        requestId: rental.id,
+        userId: l.ownerId,
+        status: "Pending",
+        message: `New request for ${l.title}. Accept or decline within 48 hours.`,
+      });
       return tx.email.create({
         data: {
           id: `request-${rental.id}-pending`,
@@ -613,6 +621,33 @@ async function handle(req, ctx) {
       });
     });
     await deliverEmail(notification);
+    return { ok: true };
+  }
+  if (route === "activity" && method === "GET") {
+    const u = await requireUser();
+    const where = { userId: u.id, readAt: null };
+    const [items, unreadCount] = await db.$transaction([
+      db.rentalActivity.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 50,
+      }),
+      db.rentalActivity.count({ where }),
+    ]);
+    return { items, unreadCount };
+  }
+  if (route === "activity/read" && method === "POST") {
+    const u = await requireUser();
+    if (
+      !Array.isArray(body.ids) ||
+      body.ids.length > 50 ||
+      body.ids.some((id) => typeof id !== "string" || id.length > 300)
+    )
+      fail("Refresh your rental updates and try again.");
+    await db.rentalActivity.updateMany({
+      where: { userId: u.id, id: { in: body.ids }, readAt: null },
+      data: { readAt: new Date() },
+    });
     return { ok: true };
   }
   if (route === "requests" && method === "GET") {
@@ -744,6 +779,13 @@ async function handle(req, ctx) {
         where: { id: r.listingId },
         data: { status: next.listingStatus },
       });
+      await recordRentalActivity(tx, {
+        requestId: r.id,
+        userId: u.id === r.lenderId ? r.renterId : r.lenderId,
+        status: next.requestStatus,
+        message: `${r.listing.title}: ${next.requestStatus}.`,
+      });
+
       if (["accept", "decline", "cancel"].includes(action)) {
         const recipient = await tx.user.findUnique({
           where: { id: action === "cancel" ? r.lenderId : r.renterId },

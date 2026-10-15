@@ -7,7 +7,7 @@ const db = new PrismaClient(),
   base = process.env.TEST_URL || "http://127.0.0.1:3000";
 if (
   !["localhost", "127.0.0.1"].includes(new URL(base).hostname) ||
-  process.env.SENDGRID_API_KEY
+  (process.env.SENDGRID_API_KEY || process.env.GMAIL_APP_PASSWORD)
 )
   throw new Error(
     "This disposable integration suite runs only locally with real email disabled.",

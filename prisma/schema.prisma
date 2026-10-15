@@ -8,6 +8,7 @@ datasource db {
   schemas = ["toga"]
 }
 model User {
+  rentalActivity RentalActivity[]
   id String @id @default(cuid())
   email String @unique
   passwordHash String?
@@ -59,6 +60,7 @@ model Listing {
   @@schema("toga")
 }
 model RentalRequest {
+  activity RentalActivity[]
   id String @id @default(cuid())
   listingId String
   listing Listing @relation(fields: [listingId], references: [id])
@@ -145,5 +147,18 @@ model EmailOtp {
   resendAt DateTime
   attempts Int @default(0)
   @@index([expiresAt])
+  @@schema("toga")
+}
+
+model RentalActivity {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestId String
+  request RentalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  message String
+  createdAt DateTime @default(now())
+  readAt DateTime?
+  @@index([userId, readAt, createdAt])
   @@schema("toga")
 }

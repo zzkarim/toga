@@ -2593,3 +2593,18 @@ footer > button:last-child {
   overflow-wrap: anywhere;
   margin-top: 8px;
 }
+
+.rental-updates {
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+.rental-updates ul {
+  padding-left: 20px;
+  margin: 16px 0;
+}
+.rental-updates li + li {
+  margin-top: 8px;
+}
+.rental-updates .button {
+  white-space: normal;
+}

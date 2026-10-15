@@ -37,6 +37,8 @@ export default function Home() {
     [listings, setListings] = useState([]),
     [mine, setMine] = useState([]),
     [rentals, setRentals] = useState([]),
+    [activity, setActivity] = useState({ items: [], unreadCount: 0 }),
+    [activityError, setActivityError] = useState(""),
     [admin, setAdmin] = useState(null),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -68,17 +70,21 @@ export default function Home() {
       setListings([]);
       setMine([]);
       setRentals([]);
+      setActivity({ items: [], unreadCount: 0 });
       setAdmin(null);
       return;
     }
-    const [a, b, c] = await Promise.all([
+    const [a, b, c, d] = await Promise.all([
       api("listings"),
       api("listings?mine=true"),
       api("requests"),
+      api("activity"),
     ]);
     setListings(a.listings);
     setMine(b.listings);
     setRentals(c.requests);
+    setActivity(d);
+    setActivityError("");
     if (me.role === "admin") setAdmin(await api("admin"));
   }
   useEffect(() => {
@@ -116,6 +122,42 @@ export default function Home() {
     const timer = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(timer);
   }, [toast]);
+  useEffect(() => {
+    if (!user?.id) return;
+    let stopped = false,
+      running = false;
+    const poll = async () => {
+      if (document.visibilityState === "hidden" || running) return;
+      running = true;
+      try {
+        const [updates, latest] = await Promise.all([
+          api("activity"),
+          api("requests"),
+        ]);
+        if (!stopped) {
+          setActivity(updates);
+          setRentals(latest.requests);
+          setActivityError("");
+        }
+      } catch {
+        if (!stopped)
+          setActivityError(
+            "Rental updates could not refresh. Use Refresh to try again.",
+          );
+      } finally {
+        running = false;
+      }
+    };
+    const timer = setInterval(poll, 30000);
+    window.addEventListener("focus", poll);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", poll);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  }, [user?.id]);
   function navigate(next) {
     setView(next);
     setMenu(false);
@@ -233,8 +275,13 @@ export default function Home() {
                   onClick={() => navigate(key)}
                 >
                   {label}
-                  {key === "rentals" && incomingCount > 0 && (
-                    <span className="count">{incomingCount}</span>
+                  {key === "rentals" && activity.unreadCount > 0 && (
+                    <span
+                      className="count"
+                      aria-label={`${activity.unreadCount} unread rental updates`}
+                    >
+                      {activity.unreadCount}
+                    </span>
                   )}
                 </button>
               ))}
@@ -596,6 +643,46 @@ export default function Home() {
               )}
               {view === "rentals" && (
                 <>
+                  {activityError && (
+                    <p role="status" className="error">
+                      {activityError}
+                    </p>
+                  )}
+                  {activity.unreadCount > 0 && (
+                    <section
+                      className="rental-updates panel"
+                      aria-label="New rental updates"
+                    >
+                      <h2>
+                        {activity.unreadCount} new rental update
+                        {activity.unreadCount === 1 ? "" : "s"}
+                      </h2>
+                      <p>
+                        New requests and status changes appear here, even if an
+                        email is missed.
+                      </p>
+                      <ul>
+                        {activity.items.map((item) => (
+                          <li key={item.id}>{item.message}</li>
+                        ))}
+                      </ul>
+                      <button
+                        className="button outline"
+                        disabled={busy}
+                        onClick={() =>
+                          perform(
+                            () =>
+                              api("activity/read", "POST", {
+                                ids: activity.items.map((item) => item.id),
+                              }),
+                            "Updates marked as read.",
+                          )
+                        }
+                      >
+                        Mark these updates as read
+                      </button>
+                    </section>
+                  )}
                   <div
                     className="dashboard-tabs"
                     aria-label="Rental request direction"
@@ -890,7 +977,7 @@ export default function Home() {
                                           row.to,
                                           row.subject,
                                           row.sentAt
-                                            ? "Accepted by SendGrid"
+                                            ? "Accepted by the email provider"
                                             : row.error || row.deliveryStatus,
                                         ]
                               ).map((value, i) => (
