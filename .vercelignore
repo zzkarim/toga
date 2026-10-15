@@ -1,0 +1,11 @@
+.env*
+.local-postgres
+.next
+node_modules
+data
+prisma/dev.db*
+prisma/sqlite
+public/uploads
+.git
+tests
+artifacts

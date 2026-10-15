@@ -1,0 +1,17 @@
+node_modules
+.next
+.env
+prisma/*.db*
+public/uploads/*
+!public/uploads/.gitkeep
+.local-mail
+.env.*
+!.env.example
+!.env.production.example
+.vercel
+.supabase
+.data
+data
+.local-postgres
+*.sqlite
+.env*

@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas = ["toga"]
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String?
+  name String @default("")
+  phone String @default("")
+  classYear Int?
+  profilePhotoUrl String?
+  paymentInfo String?
+  role String @default("user")
+  createdAt DateTime @default(now())
+  listings Listing[]
+  sessions Session[]
+  @@schema("toga")
+}
+model Session {
+  passwordSetupUntil DateTime?
+  canSetPassword Boolean @default(false)
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@schema("toga")
+}
+model LoginToken {
+  id String @id
+  email String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@schema("toga")
+}
+model Listing {
+  id String @id @default(cuid())
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id])
+  title String
+  description String
+  category String
+  size String
+  condition String
+  retailValue Float
+  price Float
+  photos String
+  status String @default("Active")
+  highValue Boolean @default(false)
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  requests RentalRequest[]
+  @@index([status, createdAt])
+  @@schema("toga")
+}
+model RentalRequest {
+  id String @id @default(cuid())
+  listingId String
+  listing Listing @relation(fields: [listingId], references: [id])
+  renterId String
+  lenderId String
+  startDate DateTime
+  endDate DateTime
+  pricePerDay Float @default(0)
+  status String @default("Pending")
+  pickupReminderSent Boolean @default(false)
+  returnReminderSent Boolean @default(false)
+  createdAt DateTime @default(now())
+  ratings Rating[]
+  reports ProblemReport[]
+  checks ConditionCheck[]
+  @@schema("toga")
+}
+model Rating {
+  id String @id @default(cuid())
+  requestId String
+  request RentalRequest @relation(fields: [requestId], references: [id])
+  raterId String
+  ratedUserId String
+  score Int
+  comment String?
+  createdAt DateTime @default(now())
+  @@unique([requestId, raterId])
+  @@schema("toga")
+}
+model ProblemReport {
+  id String @id @default(cuid())
+  requestId String
+  request RentalRequest @relation(fields: [requestId], references: [id])
+  reporterId String
+  description String
+  photoUrl String?
+  createdAt DateTime @default(now())
+  @@schema("toga")
+}
+model ConditionCheck {
+  id String @id @default(cuid())
+  requestId String
+  request RentalRequest @relation(fields: [requestId], references: [id])
+  userId String
+  stage String
+  photoUrl String
+  createdAt DateTime @default(now())
+  @@schema("toga")
+}
+model Email {
+  id String @id @default(cuid())
+  to String
+  subject String
+  text String
+  sentAt DateTime?
+  deliveryStatus String @default("Queued")
+  attempts Int @default(0)
+  claimedAt DateTime?
+  providerMessageId String?
+  error String?
+  createdAt DateTime @default(now())
+  @@schema("toga")
+}
+
+model Upload {
+  id String @id
+  ownerId String
+  createdAt DateTime @default(now())
+  @@index([ownerId, createdAt])
+  @@schema("toga")
+}
+model RateLimit {
+  id String @id
+  count Int @default(1)
+  resetsAt DateTime
+  @@schema("toga")
+}
+
+model EmailOtp {
+  email String @id
+  challenge String @unique
+  digest String
+  expiresAt DateTime
+  resendAt DateTime
+  attempts Int @default(0)
+  @@index([expiresAt])
+  @@schema("toga")
+}
