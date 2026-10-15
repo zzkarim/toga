@@ -9,3 +9,6 @@ public/uploads
 .git
 tests
 artifacts
+
+.data
+.local-mail
