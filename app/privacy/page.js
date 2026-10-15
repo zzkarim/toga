@@ -7,10 +7,11 @@ export default function Privacy() {
       <section>
         <h2>Information we collect</h2>
         <p>
-          The individual operator of Toga, {LEGAL_OPERATOR}, collects your
-          email, name, phone number, optional class year and profile photo,
-          payment instructions you choose to share, listings and photos, rental
-          requests and dates, ratings, condition photos, problem reports, and
+          The individual operator of Toga
+          {LEGAL_OPERATOR ? `, ${LEGAL_OPERATOR},` : ""} collects your email,
+          name, phone number, optional class year and profile photo, payment
+          instructions you choose to share, listings and photos, rental requests
+          and dates, ratings, condition photos, problem reports, and
           communications you send to support. The current app has no private
           chat feature; communications submitted in reports and support messages
           may be retained. We also store password hashes when you set a

@@ -1,4 +1,3 @@
-import { legalPublicationProblems } from "../../../lib/legal-config.mjs";
 import { replacementValue } from "../../../lib/replacement-value.mjs";
 import {
   TERMS_VERSION,
@@ -197,7 +196,11 @@ async function handle(req, ctx) {
     return { campus: CAMPUS, domain: DOMAIN };
   if (route === "health" && method === "GET") {
     await db.$queryRaw`SELECT 1`;
-    return { ok: true };
+    return {
+      ok: true,
+      release: process.env.TOGA_RELEASE_SHA || "local",
+      theme: process.env.TOGA_THEME || "halloween",
+    };
   }
   if (route === "auth/otp/request" && method === "POST") {
     const email = normalizeEmail(body.email);
@@ -454,14 +457,6 @@ async function handle(req, ctx) {
     return { ok: true };
   }
   if (route === "legal/accept" && method === "POST") {
-    if (
-      process.env.NODE_ENV === "production" &&
-      legalPublicationProblems().length
-    )
-      fail(
-        "Legal documents are awaiting publication review. Please try again later.",
-        503,
-      );
     const user = await currentUser();
     if (!user) fail("Please sign in to continue.", 401);
     if (
@@ -589,6 +584,7 @@ async function handle(req, ctx) {
   }
   if (route === "listings" && method === "POST") {
     const u = await requireProfile();
+    await limit(`listing-create:${u.id}`, 20, 3600000);
     return {
       listing: await db.listing.create({
         data: { ...(await listingData(body, u.id)), ownerId: u.id },
@@ -619,6 +615,7 @@ async function handle(req, ctx) {
   }
   if (route === "requests" && method === "POST") {
     const u = await requireProfile();
+    await limit(`rental-request:${u.id}`, 20, 3600000);
     if (body.renterAcknowledged !== true || body.termsVersion !== TERMS_VERSION)
       fail("Confirm your rental responsibilities before requesting this item.");
     let dates;
@@ -787,6 +784,7 @@ async function handle(req, ctx) {
       return { ok: true };
     }
     if (action === "report") {
+      await limit(`report:${u.id}`, 10, 3600000);
       if (
         r.status !== "Completed" ||
         String(body.description || "").trim().length < 5
@@ -905,7 +903,7 @@ async function handle(req, ctx) {
     });
     return { users, listings, requests, reports, emails: latestEmails };
   }
-  if (route === "jobs" && method === "POST") {
+  if (route === "jobs" && ["GET", "POST"].includes(method)) {
     if (
       !process.env.CRON_SECRET ||
       req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`

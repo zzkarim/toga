@@ -1,10 +1,5 @@
-import { legalPublicationProblems } from "./lib/legal-config.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-if (process.env.VERCEL && legalPublicationProblems().length)
-  throw new Error(
-    "Legal publication blocked: " + legalPublicationProblems().join(" "),
-  );
 const headers = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },

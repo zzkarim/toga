@@ -23,7 +23,9 @@ Copy `.env.production.example` to `.env.production.local` and populate it locall
 | `EMAIL_PROVIDER` | `gmail`. |
 | `GMAIL_USER` | `jointoga@gmail.com`. |
 | `GMAIL_APP_PASSWORD` | Server-only Google App Password, entered using the local secrets script. |
-| `EMAIL_FROM` | Your exact Single Sender verified email address, without a display name. |
+| `EMAIL_FROM` | The Gmail sender address matching `GMAIL_USER`, without a display name. |
+| `TOGA_THEME` | `halloween` for this release; `classic` plus redeployment restores the original theme. |
+| `TOGA_RELEASE_SHA` | Git commit deployed by the CLI release workflow. |
 | `DEV_EMAIL_PREVIEW` | `false`. |
 | `CRON_SECRET` | At least 32 random characters. |
 | `STORAGE_DRIVER` | `supabase`. |

@@ -1,8 +1,5 @@
 import { Children, cloneElement } from "react";
-import {
-  legalPublicationProblems,
-  CONTACT_EMAIL,
-} from "../lib/legal-config.mjs";
+import { legalPublicationProblems } from "../lib/legal-config.mjs";
 export default function LegalDocument({ title, version, children }) {
   const sections = Children.toArray(children).map((section, index) => ({
     section,
@@ -12,20 +9,6 @@ export default function LegalDocument({ title, version, children }) {
     )?.props.children,
   }));
   const draft = legalPublicationProblems().length > 0;
-  if (
-    process.env.NODE_ENV === "production" &&
-    draft &&
-    process.env.LEGAL_DRAFT_PREVIEW !== "true"
-  )
-    return (
-      <main className="legal-document">
-        <h1>{title}</h1>
-        <p>
-          These documents are awaiting publication review. Contact{" "}
-          {CONTACT_EMAIL} for assistance.
-        </p>
-      </main>
-    );
   return (
     <main className="legal-document">
       <a href="/" className="text-button">
@@ -33,8 +16,9 @@ export default function LegalDocument({ title, version, children }) {
       </a>
       {draft && (
         <p className="draft-banner">
-          DRAFT — not for publication. Operator identity, governing
-          jurisdiction, and final review remain pending.
+          DRAFT — non-final pilot documents. Operator identification, governing
+          jurisdiction, and legal review remain pending. No attorney approval is
+          claimed.
         </p>
       )}
       <h1>{title}</h1>

@@ -330,6 +330,8 @@ try {
     false,
   );
   await call("jobs", "POST", {}, "renter", 401);
+  await call("jobs", "GET", null, "renter", 401);
+  await call("jobs", "GET", null, null, 200, {Authorization: `Bearer ${process.env.CRON_SECRET}`});
   await call(
     "me",
     "PATCH",

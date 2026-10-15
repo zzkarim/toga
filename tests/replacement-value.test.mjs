@@ -11,7 +11,7 @@ test("optional replacement value distinguishes missing, zero, and invalid input"
   for (const value of [false, true, [], {}, -1, Infinity, "no", 10001])
     assert.throws(() => replacementValue(value));
 });
-test("publication requires reviewed operator and jurisdiction configuration", () => {
+test("draft status remains explicit until operator, jurisdiction, and review are provided", () => {
   assert.equal(legalPublicationProblems({}).length, 3);
   const env = {
     LEGAL_OPERATOR_NAME: "Test operator",

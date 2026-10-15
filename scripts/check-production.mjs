@@ -1,9 +1,10 @@
-import { legalPublicationProblems } from "../lib/legal-config.mjs";
 import { isAllowedEmail } from "../lib/campus.mjs";
 try {
   process.loadEnvFile(".env.production.local");
 } catch {}
-const problems = legalPublicationProblems();
+const problems = [];
+if (!["halloween", "classic"].includes(process.env.TOGA_THEME))
+  problems.push("TOGA_THEME must be halloween or classic.");
 if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(process.env.EMAIL_FROM || ""))
   problems.push(
     "EMAIL_FROM must be the exact verified sender email, without a display name.",

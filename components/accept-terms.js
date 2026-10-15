@@ -12,7 +12,13 @@ export default function AcceptTerms({ draft = true }) {
       <p>
         Please review the current terms, privacy policy, and age requirement.
       </p>
-      {draft && <p className="draft-banner">DRAFT: pending attorney review.</p>}
+      {draft && (
+        <p className="draft-banner">
+          DRAFT: non-final pilot documents. Operator identification,
+          jurisdiction, and legal review remain pending; no attorney approval is
+          claimed.
+        </p>
+      )}
       <p>
         <a href="/terms">Terms of Service</a> ·{" "}
         <a href="/privacy">Privacy Policy</a> · <a href="/safety">Safety</a>

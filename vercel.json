@@ -2,7 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "npm run build:vercel",
-  "regions": [
-    "iad1"
+  "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/jobs",
+      "schedule": "0 12 * * *"
+    }
   ]
 }

@@ -12,13 +12,21 @@ export default function Terms() {
         <h2>1. Who operates Toga</h2>
         <p>
           Toga is an individually operated, unincorporated service operating
-          under the name Toga. Its operator is {LEGAL_OPERATOR}. Toga is a
-          product name, not an LLC or corporation. Toga connects students who
-          want to lend or rent clothing. Toga is a platform, not the owner,
-          lender, renter, agent, or insurer of any item, and is not a party to
-          any rental. Each rental is an agreement between its lender and renter.
-          Toga is not affiliated with or endorsed by Georgia Tech or any
-          university.
+          under the name Toga.{" "}
+          {LEGAL_OPERATOR ? (
+            <>Its operator is {LEGAL_OPERATOR}.</>
+          ) : (
+            <>
+              The operator’s legal identification has not yet been finalized for
+              these draft documents; contact {CONTACT_EMAIL} with questions.
+            </>
+          )}{" "}
+          Toga is a product name, not an LLC or corporation. Toga connects
+          students who want to lend or rent clothing. Toga is a platform, not
+          the owner, lender, renter, agent, or insurer of any item, and is not a
+          party to any rental. Each rental is an agreement between its lender
+          and renter. Toga is not affiliated with or endorsed by Georgia Tech or
+          any university.
         </p>
       </section>
       <section>
@@ -97,17 +105,16 @@ export default function Terms() {
         <h2>8. Liability and indemnification</h2>
         <p>
           To the fullest extent permitted by law, the individual operator of
-          Toga is not liable for indirect, incidental, consequential, or
-          special losses arising from use of Toga or user-to-user rentals. You
-          agree, to the extent permitted by law, to indemnify the individual
-          operator of Toga against third-party claims, damages, and reasonable
-          costs arising from your unlawful conduct, infringement, misleading
-          listings, or breach of these terms. This does not require
-          indemnification for conduct or liability that cannot legally be
-          shifted to you. The scope and enforceability of these provisions
-          remain subject to attorney review. These contractual provisions do not
-          create an incorporated entity or an entity-based limited-liability
-          shield for the operator.
+          Toga is not liable for indirect, incidental, consequential, or special
+          losses arising from use of Toga or user-to-user rentals. You agree, to
+          the extent permitted by law, to indemnify the individual operator of
+          Toga against third-party claims, damages, and reasonable costs arising
+          from your unlawful conduct, infringement, misleading listings, or
+          breach of these terms. This does not require indemnification for
+          conduct or liability that cannot legally be shifted to you. The scope
+          and enforceability of these provisions remain subject to attorney
+          review. These contractual provisions do not create an incorporated
+          entity or an entity-based limited-liability shield for the operator.
         </p>
       </section>
       <section>
@@ -126,14 +133,23 @@ export default function Terms() {
       <section>
         <h2>10. Governing law and disputes</h2>
         <p>
-          Governing law: {GOVERNING_JURISDICTION}, subject to mandatory
-          applicable law. Contact {CONTACT_EMAIL} with a factual description of
-          a dispute and relevant records. We may request clarification and help
-          the parties discuss a resolution, but cannot bind them to a
-          settlement. These terms do not impose mandatory arbitration, a
-          class-action or jury-trial waiver, or an exclusive court venue.
-          Contacting Toga does not prevent you from seeking legal remedies or
-          urgent assistance.
+          {GOVERNING_JURISDICTION ? (
+            <>
+              Governing law: {GOVERNING_JURISDICTION}, subject to mandatory
+              applicable law.
+            </>
+          ) : (
+            <>
+              No governing jurisdiction has been selected in these draft terms.
+              Applicable mandatory law still applies.
+            </>
+          )}{" "}
+          Contact {CONTACT_EMAIL} with a factual description of a dispute and
+          relevant records. We may request clarification and help the parties
+          discuss a resolution, but cannot bind them to a settlement. These
+          terms do not impose mandatory arbitration, a class-action or
+          jury-trial waiver, or an exclusive court venue. Contacting Toga does
+          not prevent you from seeking legal remedies or urgent assistance.
         </p>
       </section>
       <section>
