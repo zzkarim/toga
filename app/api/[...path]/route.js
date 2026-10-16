@@ -1,3 +1,4 @@
+import { moderate } from "../../../lib/moderation";
 import { replacementValue } from "../../../lib/replacement-value.mjs";
 import {
   TERMS_VERSION,
@@ -42,7 +43,7 @@ import {
 import { sizes } from "../../../lib/browse.mjs";
 import { hash, fail, limit } from "../../../lib/security";
 import { ownPhotos, savePhoto, readPhoto } from "../../../lib/uploads";
-import { categories, dateRange, transition } from "../../../lib/rules.mjs";
+import { listingTags, dateRange, transition } from "../../../lib/rules.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -54,6 +55,9 @@ const publicUser = (u) =>
     profilePhotoUrl: u.profilePhotoUrl,
   };
 async function createSession(user, canSetPassword = false) {
+  const fresh = await db.user.findUnique({ where: { id: user.id } });
+  if (!fresh || fresh.accountStatus !== "Active")
+    fail("This account is disabled. Contact Toga for help.", 403);
   const session = randomBytes(32).toString("hex");
   await db.session.create({
     data: {
@@ -84,7 +88,8 @@ async function currentUser() {
   if (
     !session ||
     session.expiresAt <= new Date() ||
-    !isAllowedEmail(session.user.email)
+    !isAllowedEmail(session.user.email) ||
+    session.user.accountStatus !== "Active"
   )
     return null;
   // Renew at most once a day; password-recovery privileges have a separate expiry.
@@ -130,7 +135,13 @@ async function listingData(body, userId) {
     fail(
       "Confirm ownership, condition, and the prohibited-items policy before publishing.",
     );
-  const { title, description, category, size, condition, photos } = body;
+  const { title, description, size, condition, photos } = body;
+  let tags;
+  try {
+    tags = listingTags(body);
+  } catch (error) {
+    fail(error.message);
+  }
   if (
     typeof title !== "string" ||
     title.trim().length < 3 ||
@@ -140,12 +151,8 @@ async function listingData(body, userId) {
     description.length > 3000
   )
     fail("Add a title and a short description.");
-  if (
-    !categories.includes(category) ||
-    !["New", "Like New", "Good"].includes(condition) ||
-    !sizes.includes(size)
-  )
-    fail("Choose a category, condition, and size.");
+  if (!["New", "Like New", "Good"].includes(condition) || !sizes.includes(size))
+    fail("Choose a condition and size.");
   const price = Number(body.price);
   let retailValue;
   try {
@@ -161,7 +168,7 @@ async function listingData(body, userId) {
   return {
     title: title.trim(),
     description,
-    category,
+    categories: tags,
     size,
     condition,
     price: Math.round(price * 100) / 100,
@@ -555,8 +562,10 @@ async function handle(req, ctx) {
         ? { ownerId: u.id, status: { not: "Archived" } }
         : {
             status: "Active",
+            moderationStatus: "Visible",
             isDemo: false,
             owner: {
+              accountStatus: "Active",
               OR: [
                 { email: { endsWith: "@gatech.edu" } },
                 { email: ADMIN_EXCEPTION_EMAIL },
@@ -633,6 +642,8 @@ async function handle(req, ctx) {
         !l ||
         l.status !== "Active" ||
         l.isDemo ||
+        l.moderationStatus !== "Visible" ||
+        l.owner.accountStatus !== "Active" ||
         !isAllowedEmail(l.owner.email)
       )
         fail("This item is no longer available.");
@@ -645,6 +656,7 @@ async function handle(req, ctx) {
         where: {
           id: l.id,
           status: "Active",
+          moderationStatus: "Visible",
           retailValue: l.retailValue,
           price: l.price,
         },
@@ -721,7 +733,18 @@ async function handle(req, ctx) {
         listing: true,
         ratings: true,
         checks: true,
-        reports: { where: { reporterId: u.id } },
+        reports: {
+          where: { reporterId: u.id },
+          select: {
+            id: true,
+            requestId: true,
+            reporterId: true,
+            description: true,
+            photoUrl: true,
+            createdAt: true,
+            status: true,
+          },
+        },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
@@ -870,29 +893,40 @@ async function handle(req, ctx) {
     if (notification) await deliverEmail(notification);
     return { ok: true };
   }
+  if (route === "admin/moderate" && method === "POST") {
+    const u = await requireUser();
+    if (u.role !== "admin") fail("Admin access required.", 403);
+    await limit(`admin:${u.id}`, 60, 60000);
+    return db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1::int AS locked FROM pg_advisory_xact_lock(1061601::bigint)`;
+      return moderate(tx, u, body);
+    });
+  }
   if (route === "admin" && method === "GET") {
     const u = await requireUser();
     if (u.role !== "admin") fail("Admin access required.", 403);
-    const [users, listings, requests, reports, emails] = await Promise.all([
-      db.user.findMany(),
-      db.listing.findMany(),
-      db.rentalRequest.findMany(),
-      db.problemReport.findMany(),
-      db.email.findMany({
-        select: {
-          id: true,
-          to: true,
-          subject: true,
-          sentAt: true,
-          deliveryStatus: true,
-          providerMessageId: true,
-          error: true,
-          createdAt: true,
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 50,
-      }),
-    ]);
+    const [users, listings, requests, reports, emails, audit] =
+      await Promise.all([
+        db.user.findMany(),
+        db.listing.findMany(),
+        db.rentalRequest.findMany(),
+        db.problemReport.findMany(),
+        db.email.findMany({
+          select: {
+            id: true,
+            to: true,
+            subject: true,
+            sentAt: true,
+            deliveryStatus: true,
+            providerMessageId: true,
+            error: true,
+            createdAt: true,
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 50,
+        }),
+        db.adminAudit.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+      ]);
     const seenAuth = new Set();
     const latestEmails = emails.filter((email) => {
       if (![OTP_SUBJECT, "Your Toga sign-in link"].includes(email.subject))
@@ -901,7 +935,7 @@ async function handle(req, ctx) {
       seenAuth.add(email.to);
       return true;
     });
-    return { users, listings, requests, reports, emails: latestEmails };
+    return { users, listings, requests, reports, emails: latestEmails, audit };
   }
   if (route === "jobs" && ["GET", "POST"].includes(method)) {
     if (

@@ -13,7 +13,7 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
     item || {
       title: "",
       description: "",
-      category: "Formal",
+      categories: [],
       size: "M",
       condition: "Good",
       retailValue: "",
@@ -57,19 +57,28 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
         )}
       </Field>
       <div className="two-col">
-        <Field label="Category">
-          {(id) => (
-            <select
-              id={id}
-              value={form.category}
-              onChange={(e) => set("category", e.target.value)}
-            >
-              {categories.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          )}
-        </Field>
+        <fieldset className="tag-picker">
+          <legend>Categories · optional</legend>
+          <div className="tag-options">
+            {categories.map((tag) => (
+              <button
+                type="button"
+                key={tag}
+                aria-pressed={(form.categories || []).includes(tag)}
+                onClick={() =>
+                  set(
+                    "categories",
+                    (form.categories || []).includes(tag)
+                      ? form.categories.filter((value) => value !== tag)
+                      : [...(form.categories || []), tag],
+                  )
+                }
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <Field label="Size">
           {(id) => (
             <select

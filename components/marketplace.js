@@ -1,4 +1,5 @@
 "use client";
+import AdminDashboard from "./admin-dashboard";
 import SeasonalDecor from "./seasonal-decor";
 import { needsAcceptance, TERMS_VERSION } from "../lib/legal.mjs";
 import AuthForm from "../components/auth-form";
@@ -18,7 +19,7 @@ import {
 import { api, Field, Modal, PhotoUpload, money } from "../components/ui";
 import { ListingForm, ProfileForm, RentalDates } from "../components/forms";
 import { CAMPUS, DESCRIPTION, safeDestination } from "../lib/campus.mjs";
-import { categories } from "../lib/rules.mjs";
+import { browseCategories } from "../lib/rules.mjs";
 import { filterListings, sizes } from "../lib/browse.mjs";
 const date = (value) =>
   new Date(value).toLocaleDateString("en-US", {
@@ -52,8 +53,7 @@ export default function Home() {
     [maxPrice, setMaxPrice] = useState(""),
     [query, setQuery] = useState(""),
     [saved, setSaved] = useState([]),
-    [rentalTab, setRentalTab] = useState("outgoing"),
-    [adminTab, setAdminTab] = useState("listings");
+    [rentalTab, setRentalTab] = useState("outgoing");
   const [password, setPassword] = useState(""),
     [currentPassword, setCurrentPassword] = useState("");
   const [token, setToken] = useState(""),
@@ -265,8 +265,9 @@ export default function Home() {
               {[
                 ["browse", "Browse"],
                 ["closet", "My listings"],
-                ["rentals", "My Rentals"],
+                ["rentals", "My rentals"],
                 ["profile", "Account"],
+                ...(user.role === "admin" ? [["admin", "Admin"]] : []),
               ].map(([key, label]) => (
                 <button
                   key={key}
@@ -412,14 +413,14 @@ export default function Home() {
                 </label>
               </div>
               <div className="category-row" aria-label="Categories">
-                {["All pieces", ...categories].map((c) => (
+                {["All pieces", ...browseCategories].map((c) => (
                   <button
                     key={c}
                     aria-pressed={category === c}
                     className={category === c ? "selected" : ""}
                     onClick={() => setCategory(c)}
                   >
-                    {c === "Interview/Professional" ? "Interview & work" : c}
+                    {c}
                   </button>
                 ))}
               </div>
@@ -468,7 +469,9 @@ export default function Home() {
                     </div>
                     <div className="listing-info">
                       <span className="item-category">
-                        {item.category} · {item.condition}
+                        {[...(item.categories || []), item.condition].join(
+                          " · ",
+                        )}
                       </span>
                       <button
                         className="item-title"
@@ -600,7 +603,12 @@ export default function Home() {
                       />
                       <div className="rental-body">
                         <span className="status">
-                          {item.status === "Active" ? "Available" : item.status}
+                          {item.moderationStatus &&
+                          item.moderationStatus !== "Visible"
+                            ? `${item.moderationStatus} by Toga`
+                            : item.status === "Active"
+                              ? "Available"
+                              : item.status}
                         </span>
                         <h2>{item.title}</h2>
                         <p>
@@ -901,141 +909,11 @@ export default function Home() {
               )}
               {view === "admin" &&
                 (user.role === "admin" && admin ? (
-                  <>
-                    <div className="admin-tabs">
-                      {[
-                        "users",
-                        "listings",
-                        "requests",
-                        "reports",
-                        "emails",
-                      ].map((t) => (
-                        <button
-                          className={adminTab === t ? "selected" : ""}
-                          key={t}
-                          onClick={() => setAdminTab(t)}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                    <div
-                      className="table-wrap"
-                      role="region"
-                      aria-label="Admin records"
-                      tabIndex={0}
-                    >
-                      <table>
-                        <thead>
-                          <tr>
-                            {(adminTab === "users"
-                              ? [
-                                  "Name",
-                                  "Email",
-                                  "Phone",
-                                  "Role",
-                                  "Terms status",
-                                  "Terms version",
-                                  "Accepted at",
-                                ]
-                              : adminTab === "listings"
-                                ? [
-                                    "Item",
-                                    "Owner",
-                                    "Status",
-                                    "Replacement value",
-                                  ]
-                                : adminTab === "requests"
-                                  ? [
-                                      "ID",
-                                      "Item",
-                                      "Status",
-                                      "Renter",
-                                      "Dates",
-                                      "Renter acknowledgement",
-                                    ]
-                                  : adminTab === "reports"
-                                    ? ["Rental", "Reporter", "Problem", "Photo"]
-                                    : ["To", "Subject", "Delivery"]
-                            ).map((h) => (
-                              <th key={h}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(admin[adminTab] || []).map((row) => (
-                            <tr key={row.id}>
-                              {(adminTab === "users"
-                                ? [
-                                    row.name,
-                                    row.email,
-                                    row.phone,
-                                    row.role,
-                                    row.termsAcceptedAt
-                                      ? needsAcceptance(row)
-                                        ? "Update required"
-                                        : "Current"
-                                      : "Not accepted",
-                                    row.termsVersion || "—",
-                                    row.termsAcceptedAt
-                                      ? new Date(
-                                          row.termsAcceptedAt,
-                                        ).toISOString()
-                                      : "—",
-                                  ]
-                                : adminTab === "listings"
-                                  ? [
-                                      row.title,
-                                      row.ownerId,
-                                      row.status,
-                                      row.retailValue != null
-                                        ? money(row.retailValue)
-                                        : "Not specified",
-                                    ]
-                                  : adminTab === "requests"
-                                    ? [
-                                        row.id,
-                                        row.listingId,
-                                        row.status,
-                                        row.renterId,
-                                        `${date(row.startDate)} – ${date(row.endDate)}`,
-                                        row.renterAcknowledgedAt
-                                          ? `${row.renterAcknowledgedTermsVersion} · ${new Date(row.renterAcknowledgedAt).toISOString()} · ${row.renterAcknowledgedReplacementValue == null ? (row.renterAcknowledgedTermsVersion === TERMS_VERSION ? "Not specified" : "Amount not recorded") : money(row.renterAcknowledgedReplacementValue)}`
-                                          : "Not recorded",
-                                      ]
-                                    : adminTab === "reports"
-                                      ? [
-                                          row.requestId,
-                                          row.reporterId,
-                                          row.description,
-                                          row.photoUrl ? (
-                                            <a
-                                              href={row.photoUrl}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                            >
-                                              View photo
-                                            </a>
-                                          ) : (
-                                            "—"
-                                          ),
-                                        ]
-                                      : [
-                                          row.to,
-                                          row.subject,
-                                          row.sentAt
-                                            ? "Accepted by the email provider"
-                                            : row.error || row.deliveryStatus,
-                                        ]
-                              ).map((value, i) => (
-                                <td key={i}>{value}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
+                  <AdminDashboard
+                    data={admin}
+                    userId={user.id}
+                    onRefresh={refresh}
+                  />
                 ) : (
                   <p className="error">Admin access required.</p>
                 ))}
@@ -1255,7 +1133,9 @@ export default function Home() {
                 </div>
               </div>
               <div>
-                <div className="eyebrow">{selected.category}</div>
+                <div className="eyebrow">
+                  {(selected.categories || []).join(" · ")}
+                </div>
                 <div className="detail-price">
                   {money(selected.price)}
                   <span> / day</span>

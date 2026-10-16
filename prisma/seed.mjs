@@ -59,6 +59,9 @@ try {
         description:
           "An illustrated test listing, not available for real rentals.",
         category,
+        categories: [
+          category === "Interview/Professional" ? "Professional" : category,
+        ],
         size,
         price,
         condition: "Good",

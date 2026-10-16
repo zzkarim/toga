@@ -8,6 +8,7 @@ datasource db {
   schemas = ["toga"]
 }
 model User {
+  accountStatus String @default("Active")
   termsAcceptedAt DateTime?
   termsVersion String?
   privacyVersion String?
@@ -50,7 +51,9 @@ model Listing {
   owner User @relation(fields: [ownerId], references: [id])
   title String
   description String
-  category String
+  categories String[] @default([])
+  moderationStatus String @default("Visible")
+  category String @default("")
   size String
   condition String
   retailValue Float?
@@ -99,6 +102,9 @@ model Rating {
   @@schema("toga")
 }
 model ProblemReport {
+  status String @default("Open")
+  adminNote String @default("")
+  resolvedAt DateTime?
   id String @id @default(cuid())
   requestId String
   request RentalRequest @relation(fields: [requestId], references: [id])
@@ -168,5 +174,17 @@ model RentalActivity {
   createdAt DateTime @default(now())
   readAt DateTime?
   @@index([userId, readAt, createdAt])
+  @@schema("toga")
+}
+
+model AdminAudit {
+  id String @id @default(cuid())
+  adminId String
+  action String
+  targetType String
+  targetId String
+  note String
+  createdAt DateTime @default(now())
+  @@index([targetType, targetId, createdAt])
   @@schema("toga")
 }

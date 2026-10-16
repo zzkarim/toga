@@ -194,9 +194,11 @@ export default function AuthForm({ onSuccess, onBusy }) {
         <p className="muted">
           By continuing you agree to our <a href="/terms">Terms</a> and{" "}
           <a href="/privacy">Privacy Policy</a>. Add {CONTACT_EMAIL} to your
-          contacts so Toga emails reach your inbox. Check Junk/Spam for “Your
-          Toga verification code” from {CONTACT_EMAIL}. Mark it as not junk.
-          Resending replaces the previous code.
+          contacts so Toga emails reach your inbox.
+        </p>
+        <p className="muted otp-help">
+          Didn't get the code? Check your spam or junk folder. Resending
+          replaces the previous code.
         </p>
         {preview && (
           <p>
