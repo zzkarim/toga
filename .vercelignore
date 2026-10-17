@@ -1,4 +1,14 @@
 .env*
+.vercel
+.git
+node_modules
+.next
+.local-postgres
+.data
+data
+public/uploads
+tests
+.env*
 .local-postgres
 .next
 node_modules

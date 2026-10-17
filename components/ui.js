@@ -109,27 +109,42 @@ export async function api(path, method = "GET", body) {
 }
 async function preparePhoto(file) {
   if (file.size > 25 * 1024 * 1024)
-    throw new Error("Choose a photo smaller than 25 MB.");
+    throw new Error("This photo is too large to process. Try another photo.");
   try {
+    if (
+      file.type === "image/heic" ||
+      file.type === "image/heif" ||
+      /\.hei[cf]$/i.test(file.name)
+    ) {
+      const { heicTo } = await import("heic-to");
+      file = await heicTo({ blob: file, type: "image/jpeg", quality: 0.88 });
+    }
     const bitmap = await createImageBitmap(file);
-    const ratio = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
-    canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
-    canvas
-      .getContext("2d")
-      .drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const blob = await new Promise((resolve) => {
-      canvas.toBlob(resolve, "image/webp", 0.82);
-    });
-    if (blob && blob.size < 4 * 1024 * 1024)
-      return new File([blob], "photo.webp", { type: "image/webp" });
-  } catch {}
-  if (file.size < 4 * 1024 * 1024) return file;
-  throw new Error(
-    "This photo could not be resized. Export it as a JPG smaller than 4 MB, then try again.",
-  );
+    try {
+      for (const [size, quality] of [[1800, 0.82], [1600, 0.74], [1400, 0.68]]) {
+        const ratio = Math.min(1, size / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+        canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("canvas unavailable");
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise((resolve) => {
+          canvas.toBlob(resolve, "image/webp", quality);
+        });
+        if (blob && blob.size > 0 && blob.size <= 3.8 * 1024 * 1024)
+          return new File([blob], "photo.webp", { type: "image/webp" });
+      }
+    } finally {
+      bitmap.close?.();
+    }
+  } catch (error) {
+    if (error.message === "This photo is too large to process. Try another photo.")
+      throw error;
+  }
+  throw new Error("We couldn't process this photo. Try choosing another image.");
 }
 function upload(file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -188,7 +203,7 @@ export function PhotoUpload({
       return;
     }
     if (selected.some((file) => file.size > 25 * 1024 * 1024)) {
-      setError("Choose photos smaller than 25 MB each.");
+      setError("This photo is too large to process. Try another photo.");
       return;
     }
     lock.current = true;
@@ -196,17 +211,22 @@ export function PhotoUpload({
     onBusyChange(true);
     setError("");
     const next = [...value];
+    const failures = [];
     try {
       for (let i = 0; i < selected.length; i++) {
         setProgress(Math.round((i / selected.length) * 100));
-        const url = await upload(await preparePhoto(selected[i]), (p) =>
-          setProgress(Math.round(((i + p / 100) / selected.length) * 100)),
-        );
-        next.push(url);
-        onChange([...next]);
+        try {
+          const photo = await preparePhoto(selected[i]);
+          const url = await upload(photo, (p) =>
+            setProgress(Math.round(((i + p / 100) / selected.length) * 100)),
+          );
+          next.push(url);
+          onChange([...next]);
+        } catch (error) {
+          failures.push(`${selected[i].name || `Photo ${i + 1}`}: ${error.message}`);
+        }
       }
-    } catch (e) {
-      setError(e.message);
+      if (failures.length) setError(failures.join(" "));
     } finally {
       lock.current = false;
       setBusy(false);

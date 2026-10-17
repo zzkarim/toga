@@ -102,6 +102,13 @@ async function jobs() {
     Authorization: `Bearer ${process.env.CRON_SECRET}`,
   });
 }
+async function assertAdminEvent(event, id) {
+  assert.equal(
+    await db.email.count({ where: { id: `admin-${event}-${id}` } }),
+    1,
+    `expected one admin ${event} email for ${id}`,
+  );
+}
 try {
   const response = await fetch(base),
     html = await response.text();
@@ -212,6 +219,10 @@ try {
     where: { listingId: listing.id, status: "Pending" },
   });
   await call(`requests/${pending.id}/decline`, "POST", {}, "lender");
+  await assertAdminEvent("request", pending.id);
+  await assertAdminEvent("decline", pending.id);
+  assert.ok(await db.email.findUnique({ where: { id: `request-${pending.id}-pending` } }));
+  assert.ok(await db.email.findUnique({ where: { id: `request-${pending.id}-decline` } }));
   await call("requests", "POST", request, "renter");
   let r = (await call("requests", "GET", null, "renter")).requests.find(
     (x) => x.status === "Pending",
@@ -221,6 +232,10 @@ try {
   await call(`listings/${listing.id}`, "DELETE", null, "lender", 400);
   await call(`requests/${r.id}/accept`, "POST", {}, "renter", 400);
   await call(`requests/${r.id}/accept`, "POST", {}, "lender");
+  await assertAdminEvent("request", r.id);
+  await assertAdminEvent("accept", r.id);
+  assert.ok(await db.email.findUnique({ where: { id: `request-${r.id}-pending` } }));
+  assert.ok(await db.email.findUnique({ where: { id: `request-${r.id}-accept` } }));
   assert.ok(
     (await call("requests", "GET", null, "renter")).requests.find(
       (x) => x.id === r.id,
@@ -239,6 +254,7 @@ try {
   );
   await call(`requests/${r.id}/pickup`, "POST", {}, "lender", 400);
   await call(`requests/${r.id}/pickup`, "POST", {}, "renter");
+  await assertAdminEvent("pickup", r.id);
   const privatePhoto = await photo("renter");
   await call(
     `requests/${r.id}/condition`,
@@ -268,6 +284,7 @@ try {
     2,
   );
   await call(`requests/${r.id}/return`, "POST", {}, "renter");
+  await assertAdminEvent("return", r.id);
   await call(
     `listings/${listing.id}`,
     "PATCH",
@@ -288,6 +305,10 @@ try {
     { description: "A test condition report." },
     "renter",
   );
+  const report = await db.problemReport.findFirst({
+    where: { requestId: r.id, reporterId: renter },
+  });
+  await assertAdminEvent("report", report.id);
   assert.equal(
     (await call("requests", "GET", null, "lender")).requests.find(
       (x) => x.id === r.id,
@@ -305,6 +326,7 @@ try {
     where: { listingId: listing.id, status: "Pending" },
   });
   await call(`requests/${pending.id}/cancel`, "POST", {}, "renter");
+  await assertAdminEvent("cancel", pending.id);
   assert.equal(
     (await db.listing.findUnique({ where: { id: listing.id } })).status,
     "Active",
@@ -318,6 +340,7 @@ try {
     data: { createdAt: new Date(Date.now() - 49 * 3600000) },
   });
   await jobs();
+  await assertAdminEvent("expired", pending.id);
   assert.equal(
     (await db.rentalRequest.findUnique({ where: { id: pending.id } })).status,
     "Expired",

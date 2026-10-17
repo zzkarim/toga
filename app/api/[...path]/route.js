@@ -8,6 +8,7 @@ import {
 import { notificationMail } from "../../../lib/notification-mail.mjs";
 import { emailConfigured } from "../../../lib/mail-provider.mjs";
 import { recordRentalActivity } from "../../../lib/rental-activity.mjs";
+import { notifyAdminOfMarketplaceEvent } from "../../../lib/admin-notifications.mjs";
 import { paymentInformation } from "../../../lib/payment.mjs";
 import { authLog } from "../../../lib/auth-log.mjs";
 import {
@@ -633,6 +634,7 @@ async function handle(req, ctx) {
     } catch (error) {
       fail(error.message);
     }
+    let createdRental;
     const notification = await db.$transaction(async (tx) => {
       const l = await tx.listing.findUnique({
         where: { id: body.listingId },
@@ -676,6 +678,7 @@ async function handle(req, ctx) {
         },
         include: { listing: { include: { owner: true } } },
       });
+      createdRental = rental;
       await recordRentalActivity(tx, {
         requestId: rental.id,
         userId: l.ownerId,
@@ -694,7 +697,20 @@ async function handle(req, ctx) {
         },
       });
     });
-    await deliverEmail(notification);
+    const adminNotification = notifyAdminOfMarketplaceEvent({
+      event: "request",
+      rentalId: createdRental.id,
+      listingName: createdRental.listing.title,
+      renterName: u.name,
+      renterEmail: u.email,
+      lenderName: createdRental.listing.owner.name,
+      lenderEmail: createdRental.listing.owner.email,
+      startDate: createdRental.startDate,
+      endDate: createdRental.endDate,
+      status: createdRental.status,
+      createdAt: createdRental.createdAt,
+    });
+    await Promise.allSettled([deliverEmail(notification), adminNotification]);
     return { ok: true };
   }
   if (route === "activity" && method === "GET") {
@@ -814,13 +830,34 @@ async function handle(req, ctx) {
       )
         fail("Describe the problem with your completed rental.");
       if (body.photoUrl) await ownPhotos([body.photoUrl], u.id);
-      await db.problemReport.create({
+      const report = await db.problemReport.create({
         data: {
           requestId: r.id,
           reporterId: u.id,
           description: String(body.description).slice(0, 3000),
           photoUrl: body.photoUrl || null,
         },
+      });
+      const partnerId = u.id === r.renterId ? r.lenderId : r.renterId;
+      const partner = await db.user.findUnique({ where: { id: partnerId } });
+      await notifyAdminOfMarketplaceEvent({
+        event: "report",
+        reportId: report.id,
+        rentalId: r.id,
+        listingName: r.listing.title,
+        renterName: u.id === r.renterId ? u.name : partner?.name,
+        renterEmail: u.id === r.renterId ? u.email : partner?.email,
+        lenderName: u.id === r.lenderId ? u.name : partner?.name,
+        lenderEmail: u.id === r.lenderId ? u.email : partner?.email,
+        reporterName: u.name,
+        reporterEmail: u.email,
+        otherName: partner?.name,
+        otherEmail: partner?.email,
+        reportCategory: "Rental problem",
+        startDate: r.startDate,
+        endDate: r.endDate,
+        createdAt: report.createdAt,
+        description: report.description,
       });
       return { ok: true };
     }
@@ -890,7 +927,39 @@ async function handle(req, ctx) {
       }
       return null;
     });
-    if (notification) await deliverEmail(notification);
+    const event = {
+      accept: "accept",
+      decline: "decline",
+      cancel: "cancel",
+      pickup: "pickup",
+      return: "return",
+    }[action];
+    let adminNotification = null;
+    if (event) {
+      const [renter, lender] = await Promise.all([
+        db.user.findUnique({ where: { id: r.renterId } }),
+        db.user.findUnique({ where: { id: r.lenderId } }),
+      ]);
+      adminNotification = notifyAdminOfMarketplaceEvent({
+        event,
+        rentalId: r.id,
+        listingName: r.listing.title,
+        renterName: renter?.name,
+        renterEmail: renter?.email,
+        lenderName: lender?.name,
+        lenderEmail: lender?.email,
+        actorName: u.name,
+        actorEmail: u.email,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        status: next.requestStatus,
+        createdAt: new Date(),
+        reason: action === "cancel" ? "Cancelled by user" : null,
+      });
+    }
+    const deliveries = [adminNotification];
+    if (notification) deliveries.push(deliverEmail(notification));
+    await Promise.allSettled(deliveries.filter(Boolean));
     return { ok: true };
   }
   if (route === "admin/moderate" && method === "POST") {

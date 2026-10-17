@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
+    "heic-to": "^1.6.6",
     "lucide-react": "^0.468.0",
     "next": "^15.5.12",
     "nodemailer": "^10.1.1",
