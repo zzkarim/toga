@@ -1,4 +1,8 @@
-import { requireEmailVerification } from "../../../lib/auth-policy.mjs";
+import {
+  requireEmailVerification,
+  needsAccountSecurity,
+  enforceVerifiedAccounts,
+} from "../../../lib/auth-policy.mjs";
 import { signupWithPassword } from "../../../lib/password-signup.js";
 import { isIP } from "node:net";
 import { requestVerification, otpEmailId } from "../../../lib/verification.js";
@@ -138,6 +142,8 @@ async function currentUser() {
 async function requireUser() {
   const u = await currentUser();
   if (!u) fail("Please sign in to continue.", 401);
+  if (needsAccountSecurity(u))
+    fail("Secure your Toga account before continuing.", 428);
   if (needsAcceptance(u))
     fail("Please review and accept the current terms before continuing.", 428);
   return u;
@@ -219,9 +225,14 @@ async function handle(req, ctx) {
   if (method !== "GET" && route !== "jobs") {
     const origin = req.headers.get("origin");
     const allowed = new URL(process.env.APP_URL || req.url).origin;
+    const legacySameOrigin =
+      process.env.APP_URL === "https://jointoga.com" &&
+      origin === "https://toga-ecru.vercel.app" &&
+      new URL(req.url).origin === origin;
     if (
       !origin ||
       (origin !== allowed &&
+        !legacySameOrigin &&
         !(
           process.env.NODE_ENV !== "production" &&
           origin === new URL(req.url).origin
@@ -238,6 +249,7 @@ async function handle(req, ctx) {
       campus: CAMPUS,
       domain: DOMAIN,
       requireEmailVerification: requireEmailVerification(),
+      enforceVerifiedAccounts: enforceVerifiedAccounts(),
     };
   if (route === "health" && method === "GET") {
     await db.$queryRaw`SELECT 1`;
@@ -248,6 +260,8 @@ async function handle(req, ctx) {
     };
   }
   if (route === "auth/signup" && method === "POST") {
+    if (enforceVerifiedAccounts())
+      fail("Verify your email to create an account.", 409);
     const user = await signupWithPassword(body, { ip: clientIp(req) });
     await createSession(user);
     authMonitoring(user, "signup");
@@ -263,6 +277,11 @@ async function handle(req, ctx) {
       fail(
         "Create an account with your email and password. Email recovery is for existing accounts only.",
       );
+    if (body.purpose === "migrate") {
+      const signedIn = await currentUser();
+      if (!signedIn || signedIn.email !== email)
+        fail("Sign in to the account you want to secure.", 401);
+    }
     authLog("verification_requested");
     const preview =
       process.env.NODE_ENV !== "production" &&
@@ -297,6 +316,11 @@ async function handle(req, ctx) {
       code = String(body.code || ""),
       challenge = String(body.challenge || "");
     if (!isAllowedEmail(email)) fail(DOMAIN_ERROR);
+    if (body.purpose === "migrate") {
+      const signedIn = await currentUser();
+      if (!signedIn || signedIn.email !== email)
+        fail("Sign in to the account you want to secure.", 401);
+    }
     await limit(`otp-verify:${email}`, 20, 15 * 60000);
     await limit("otp-verify:global", 300, 60000);
     if (!/^\d{6}$/.test(code) || !/^[a-f0-9]{48}$/.test(challenge)) {
@@ -329,8 +353,8 @@ async function handle(req, ctx) {
       });
       const user = await tx.user.upsert({
         where: { email },
-        create: { email, role },
-        update: { role },
+        create: { email, role, emailVerifiedAt: new Date() },
+        update: { emailVerifiedAt: new Date() },
       });
       return { user, created: !existing };
     });
@@ -354,7 +378,10 @@ async function handle(req, ctx) {
     authLog("verification_succeeded");
     return {
       ok: true,
-      next: afterAuthentication(result.user, body.next),
+      next:
+        body.purpose === "recovery"
+          ? "/secure-account?reset=1"
+          : afterAuthentication(result.user, body.next),
     };
   }
   if (route === "auth/password-login" && method === "POST") {
@@ -378,7 +405,25 @@ async function handle(req, ctx) {
     };
   }
   if (route === "auth/password" && method === "POST") {
-    const user = await requireUser();
+    const user = await currentUser();
+    if (!user) fail("Please sign in to continue.", 401);
+    if (
+      enforceVerifiedAccounts() &&
+      !user.emailVerifiedAt &&
+      user.email !== ADMIN_EXCEPTION_EMAIL
+    )
+      fail("Verify your email before creating a password.", 428);
+    if (
+      body.confirmPassword !== undefined &&
+      body.confirmPassword !== body.password
+    )
+      fail("Passwords do not match.");
+    if (
+      enforceVerifiedAccounts() &&
+      !user.passwordHash &&
+      body.confirmPassword === undefined
+    )
+      fail("Confirm your password.");
     await limit(`set-password:${user.id}`, 10, 15 * 60000);
     if (!validPassword(body.password))
       fail("Use a password between 12 and 128 characters.");
@@ -406,7 +451,7 @@ async function handle(req, ctx) {
       await tx.emailOtp.deleteMany({ where: { email: user.email } });
     });
     await createSession(user);
-    return { ok: true };
+    return { ok: true, next: afterAuthentication({ ...user, passwordHash }) };
   }
   if (route === "auth/login" && method === "POST") {
     const email = normalizeEmail(body.email);
@@ -475,12 +520,14 @@ async function handle(req, ctx) {
       return tx.user.upsert({
         where: { email: t.email },
         update: {
+          emailVerifiedAt: new Date(),
           role:
             t.email === normalizeEmail(process.env.ADMIN_EMAIL)
               ? "admin"
               : "user",
         },
         create: {
+          emailVerifiedAt: new Date(),
           email: t.email,
           role:
             t.email === normalizeEmail(process.env.ADMIN_EMAIL)
@@ -534,6 +581,7 @@ async function handle(req, ctx) {
     return {
       user: {
         ...user,
+        needsAccountSecurity: needsAccountSecurity(user),
         needsTermsAcceptance: needsAcceptance(user),
         needsProfileCompletion: needsProfile(user),
         hasPassword: Boolean(user.passwordHash),
@@ -733,6 +781,7 @@ async function handle(req, ctx) {
       });
       return tx.email.create({
         data: {
+          provider: process.env.EMAIL_PROVIDER || "gmail",
           id: `request-${rental.id}-pending`,
           to: l.owner.email,
           ...notificationMail({
@@ -749,8 +798,11 @@ async function handle(req, ctx) {
       listingName: createdRental.listing.title,
       renterName: u.name,
       renterEmail: u.email,
+      renterPhone: u.phone,
       lenderName: createdRental.listing.owner.name,
       lenderEmail: createdRental.listing.owner.email,
+      lenderPhone: createdRental.listing.owner.phone,
+      paymentInfo: createdRental.listing.owner.paymentInfo,
       startDate: createdRental.startDate,
       endDate: createdRental.endDate,
       status: createdRental.status,
@@ -966,6 +1018,7 @@ async function handle(req, ctx) {
         });
         return tx.email.create({
           data: {
+            provider: process.env.EMAIL_PROVIDER || "gmail",
             id: `request-${r.id}-${action}`,
             to: recipient.email,
             ...notificationMail({
@@ -1054,6 +1107,8 @@ async function handle(req, ctx) {
             subject: true,
             sentAt: true,
             deliveryStatus: true,
+            provider: true,
+            deliveredAt: true,
             providerMessageId: true,
             error: true,
             createdAt: true,
@@ -1076,7 +1131,15 @@ async function handle(req, ctx) {
       seenAuth.add(email.to);
       return true;
     });
-    return { users, listings, requests, reports, emails: latestEmails, audit };
+    return {
+      users,
+      listings,
+      requests,
+      reports,
+      emails: latestEmails,
+      audit,
+      emailProvider: process.env.EMAIL_PROVIDER || "gmail",
+    };
   }
   if (route === "jobs" && ["GET", "POST"].includes(method)) {
     if (

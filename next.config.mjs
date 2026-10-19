@@ -14,6 +14,16 @@ if (process.env.NODE_ENV === "production")
 export default {
   outputFileTracingRoot: path.dirname(fileURLToPath(import.meta.url)),
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.jointoga.com" }],
+        destination: "https://jointoga.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [{ source: "/:path*", headers }];
   },

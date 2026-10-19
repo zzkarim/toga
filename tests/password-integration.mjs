@@ -5,7 +5,7 @@ const db = new PrismaClient();
 const base = process.env.TEST_URL || "http://127.0.0.1:3003";
 if (
   !["localhost", "127.0.0.1"].includes(new URL(base).hostname) ||
-  (process.env.SENDGRID_API_KEY || process.env.GMAIL_APP_PASSWORD)
+  (process.env.SENDGRID_API_KEY || (process.env.GMAIL_APP_PASSWORD || process.env.RESEND_API_KEY))
 )
   throw new Error("Local, email-disabled tests only");
 const email = `password-test-${Date.now()}@gatech.edu`;

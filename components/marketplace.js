@@ -61,6 +61,10 @@ export default function Home({ requireEmailVerification = true }) {
     [destination, setDestination] = useState("/?view=browse");
   async function refresh() {
     const { user: me } = await api("me");
+    if (me?.needsAccountSecurity) {
+      window.location.replace("/secure-account");
+      return;
+    }
     if (me?.needsTermsAcceptance) {
       window.location.replace("/accept-terms");
       return;
@@ -993,7 +997,12 @@ export default function Home({ requireEmailVerification = true }) {
               onBusy={setBusy}
               onSuccess={async (data) => {
                 if (
-                  ["/complete-profile", "/accept-terms"].includes(data.next)
+                  [
+                    "/complete-profile",
+                    "/accept-terms",
+                    "/secure-account",
+                    "/secure-account?reset=1",
+                  ].includes(data.next)
                 ) {
                   window.location.replace(data.next);
                   return;
@@ -1099,7 +1108,12 @@ export default function Home({ requireEmailVerification = true }) {
                       next: destination,
                     });
                     if (
-                      ["/complete-profile", "/accept-terms"].includes(data.next)
+                      [
+                        "/complete-profile",
+                        "/accept-terms",
+                        "/secure-account",
+                        "/secure-account?reset=1",
+                      ].includes(data.next)
                     ) {
                       window.location.replace(data.next);
                       return;

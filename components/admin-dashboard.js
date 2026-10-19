@@ -70,32 +70,37 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
         <div>
           <p>
             Provider acceptance does not confirm receipt. Delivery checks
-            inspect recent Gmail failure notices.
+            inspect recent Gmail failure notices. Resend delivery updates arrive
+            automatically through signed webhooks.
           </p>
-          <button
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              try {
-                const result = await api("admin/email-sync", "POST", {});
-                setMessage(
-                  result.status === "checked"
-                    ? `Delivery check completed: ${result.matched} newly matched failures.`
-                    : result.status === "recently-checked"
-                      ? "A delivery check ran recently. Try again in a minute."
-                      : "Delivery check unavailable. Try again later or inspect the sender mailbox.",
-                );
-                await onRefresh();
-              } catch {
-                setError("Couldn't check delivery failures. Please try again.");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? "Checking…" : "Check delivery failures"}
-          </button>
+          {data.emailProvider !== "resend" && (
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError("");
+                try {
+                  const result = await api("admin/email-sync", "POST", {});
+                  setMessage(
+                    result.status === "checked"
+                      ? `Delivery check completed: ${result.matched} newly matched failures.`
+                      : result.status === "recently-checked"
+                        ? "A delivery check ran recently. Try again in a minute."
+                        : "Delivery check unavailable. Try again later or inspect the sender mailbox.",
+                  );
+                  await onRefresh();
+                } catch {
+                  setError(
+                    "Couldn't check delivery failures. Please try again.",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Checking…" : "Check delivery failures"}
+            </button>
+          )}
         </div>
       )}
       <div className="admin-tabs" aria-label="Admin sections">
@@ -368,7 +373,8 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
             {tab === "emails" && (
               <>
                 <p>
-                  {row.to} · {emailStatusLabel(row.deliveryStatus)}
+                  {row.to} · {row.provider || "gmail"} ·{" "}
+                  {emailStatusLabel(row.deliveryStatus)}
                 </p>
                 <p>
                   {emailType(row.subject)} · Attempts: {row.attempts}

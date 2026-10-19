@@ -17,6 +17,7 @@ model User {
   id String @id @default(cuid())
   email String @unique
   passwordHash String?
+  emailVerifiedAt DateTime?
   name String @default("")
   phone String @default("")
   classYear Int?
@@ -126,6 +127,9 @@ model ConditionCheck {
   @@schema("toga")
 }
 model Email {
+  provider String @default("gmail")
+  providerEventAt DateTime?
+  deliveredAt DateTime?
   id String @id @default(cuid())
   to String
   subject String
@@ -187,5 +191,15 @@ model AdminAudit {
   note String
   createdAt DateTime @default(now())
   @@index([targetType, targetId, createdAt])
+  @@schema("toga")
+}
+
+model EmailDeliveryEvent {
+  id String @id
+  providerMessageId String
+  type String
+  occurredAt DateTime
+  createdAt DateTime @default(now())
+  @@index([providerMessageId])
   @@schema("toga")
 }

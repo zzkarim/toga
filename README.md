@@ -4,13 +4,13 @@
 
 Peer-to-peer clothing rentals for college students. This launch is restricted to **Georgia Tech (`@gatech.edu`)**, with an explicit founder login exception for `jointoga@gmail.com`.
 
-Next.js 15 / React 19, Prisma 6, Supabase Postgres, private Supabase Storage, and password signup/login with optional Gmail SMTP ownership verification/recovery. Hosting target: Vercel with its default HTTPS project URL. No in-app payments.
+Next.js 15 / React 19, Prisma 6, Supabase Postgres, private Supabase Storage, and verified email signup, password login, and Resend transactional email. Production hostname: https://jointoga.com on the existing Vercel project. No in-app payments.
 
 ## Launch status
 
 Production URL: **https://toga-ecru.vercel.app**. Vercel is connected to Supabase Postgres and private Storage; production migrations are applied. Hosted routing, database sessions, image upload/download and authorization, domain rejection, and the scheduled job's HTTP response passed verification. The original SendGrid rollout accepted the admin magic-link test, and the live mobile login form accepts the exact admin exception.
 
-**Limited pilot:** production contains real student data. Never reset or empty it. Password signup can operate independently of Gmail with `REQUIRE_EMAIL_VERIFICATION=false`; email ownership is then domain-validated only, not verified. Transactional email is best-effort and may bounce. Check the live config and release before operating on production.
+**Limited pilot:** production contains real student data. Never reset or empty it. See [domain, email, authentication and rollback operations](deploy/RESEND.md). Check the live config and release before operating on production.
 
 The supplied original logo is stored unchanged in `public/logo.png` and used in the header, landing page, and browser/touch icons. Visible product naming is **Toga**, without a trailing period.
 
@@ -80,7 +80,7 @@ The hosted smoke test verifies real Postgres and Storage access through Vercel, 
 
 ## Email and jobs
 
-Use Gmail SMTP with a Google App Password for `jointoga@gmail.com`; see [Gmail setup](deploy/GMAIL.md). All sending goes through one provider function with plaintext and HTML alternatives. Verify actual Outlook placement after deployment; SMTP acceptance does not prove inbox delivery.
+Use domain-authenticated Resend; see [Resend operations](deploy/RESEND.md). Gmail SMTP remains an emergency rollback provider. All sending goes through one provider function with plaintext and HTML alternatives. Verify actual Outlook placement after deployment; SMTP acceptance does not prove inbox delivery.
 
 The job endpoint is `POST /api/jobs`, protected by `Authorization: Bearer <CRON_SECRET>`. Run every 15 minutes using [the Supabase Cron template](deploy/supabase-cron.sql). Pending-request expiration also runs during authenticated browsing. Notifications and reminders are atomically queued. Explicit temporary SMTP rejections are retried automatically (up to five attempts within 23 hours). Concurrent jobs cannot send the same claimed message. Ambiguous network outcomes are marked **Unknown** for manual checking in the Gmail sender mailbox; they are never blindly resent. API acceptance is not confirmation of inbox delivery. The admin email table includes delivery status. Expired sessions/tokens and old sign-in email records are cleaned up by the job.
 
@@ -97,13 +97,9 @@ The job endpoint is `POST /api/jobs`, protected by `Authorization: Bearer <CRON_
 
 ## Signing in
 
-Production pilot configuration is `REQUIRE_EMAIL_VERIFICATION=false`: new users enter Georgia Tech email, password, and confirmation, accept the existing legal acknowledgment, then complete required name and phone. Payment information is optional. Existing users log in with email/password. New signup never queues a verification email. The exact founder exception remains `jointoga@gmail.com`; all other addresses must match `@gatech.edu` after normalization. Passwords use the existing salted scrypt implementation (12–128 characters), and duplicate addresses never replace existing credentials.
+With `REQUIRE_EMAIL_VERIFICATION=true` and `ENFORCE_VERIFIED_ACCOUNTS=true`, new students verify their GT email, create and confirm a password, accept the legal acknowledgment, then provide name and phone. Payment information is optional. Ordinary later sign-in uses email and password; Forgot password uses a fresh email code. The exact admin exception is `jointoga@gmail.com`.
 
-The flag defaults to `true` if omitted; production build validation requires an explicit `true` or `false`. Set it to `true` and redeploy to restore the normal email-code signup UI and block password-only account creation. Existing password login remains available in either mode. No database migration is required; the schema has no email-verification boolean, and pilot signup does not claim verified ownership or add a verified-student badge.
-
-**Legacy transition:** in pilot mode, an already-authenticated active account with no password can establish its first password in Account, even after its original short recovery window expires. A banner prompts this before sign-out. This exception never replaces an existing password. Existing password changes still need the current password or a fresh verified recovery session. Setting/changing a password deliberately revokes older sessions; deployment itself does not.
-
-**Recovery limitation:** signed-out legacy users and users who forgot their password may explicitly try the existing ownership-verifying email recovery flow, but Gmail delivery is unreliable. They can contact `jointoga@gmail.com` for administrator assistance proving ownership. Do not grant access or reset credentials merely because someone knows an email/name/phone. Do not email passwords. Users with an active session should set their password before signing out. There is no insecure email-only reset bypass. In pilot mode recovery sends are restricted to existing accounts.
+`emailVerifiedAt` is written only after successful ownership proof. Existing accounts retain their IDs, passwords, profile and marketplace history. Unverified accounts verify first; passwordless accounts then set a password. Deployment does not revoke existing sessions. A password reset/setup revokes older sessions. There is no email-only account takeover path. Legacy accounts are not bulk-marked verified from incomplete historical evidence.
 
 Authentication is custom Next.js/Prisma code, not Supabase Auth. Sessions use random 256-bit tokens, hashed server-side, with HttpOnly/SameSite=Lax/Secure production cookies. Cookies and database sessions last 30 days and renew at most daily on activity. Logging out, deleting cookies, private browsing, switching browsers, or 30 days of inactivity requires another login. Password-reset authority expires separately after 15 minutes and is never extended by session renewal.
 
@@ -111,7 +107,7 @@ OTP digests use HMAC-SHA256 with the existing `CRON_SECRET` and a separate purpo
 
 ### Email delivery and diagnosis
 
-The current sender is Toga <jointoga@gmail.com> via Gmail SMTP and an App Password. Both plain-text and minimal HTML parts are sent without tracking. Rental emails contain no website links. SMTP acceptance does not prove Inbox placement. See [Gmail setup](deploy/GMAIL.md).
+Resend sends from `Toga <login@jointoga.com>` for authentication and `Toga <notifications@jointoga.com>` for notifications. Reply-To is `jointoga@gmail.com`. Both plain-text and minimal HTML parts are sent without tracking. Rental emails use a plain canonical Rentals link. Provider acceptance is distinct from delivery; signed webhooks update delivery/bounce/complaint/failure status. Inbox placement still requires recipient confirmation. See [Resend operations](deploy/RESEND.md).
 
 Vercel logs under `service=toga-auth` distinguish verification request/success/failure/expiry, rate limits, provider request/acceptance/rejection, and ambiguous connection failures. Provider logs include message IDs, HTTP status and request duration, never email addresses, codes, tokens or body text. Authentication emails send immediately and are excluded from the 15-minute rental-job retry queue; ambiguous sends are not automatically duplicated.
 
@@ -138,7 +134,7 @@ Listings use the existing `size` text column. Standard (XXS–XXL and One size),
 
 Run `tests/onboarding-sizing-integration.mjs` alongside the six existing local integration suites, with `TEST_URL` and `APP_URL` matching the local server. It exercises OTP onboarding, existing-session redirects, required fields, optional-field preservation, API enforcement, and size creation/editing.
 
-Resend cutover was deliberately stopped: the connected account has no sending domains. Its default test domain can only deliver to the account owner's address ([official restriction](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain)). Gmail remains the sole active provider; no API key or production email configuration was changed. To enable Resend, first supply a domain under your control, verify its sending DNS, then add a sending-only API key in secure environment configuration and test GT verification, user notifications, and admin copies before switching the provider boundary. Preserve deterministic outbox IDs and avoid dual sends. [Next.js integration](https://resend.com/docs/send-with-nextjs), [API key permissions](https://resend.com/docs/dashboard/api-keys/introduction), [limits](https://resend.com/docs/api-reference/rate-limit), and [webhooks](https://resend.com/docs/webhooks/introduction) were reviewed. Webhook delivery/bounce tracking can follow a verified-domain cutover; it does not establish inbox placement.
+The earlier no-domain Resend blocker is resolved by authenticated `jointoga.com`. Gmail code and historical bounce records remain for rollback; only the active provider sends new mail. See [Resend operations](deploy/RESEND.md).
 
 
 Custom category text is stored in nullable `Listing.customCategory` alongside the existing `Custom` marker in `categories`. Migration `20261019000000_custom_category` only adds that nullable text column; it rewrites no records. Selecting Custom requires 1–40 trimmed characters; deselecting it clears the value. Existing marker-only listings remain readable. Display uses the custom text, while Browse retains only its fixed standard filters. Custom sizing continues to use `Listing.size` without new metadata.

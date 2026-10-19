@@ -17,8 +17,6 @@ for (const key of [
   "APP_URL",
   "ADMIN_EMAIL",
   "EMAIL_PROVIDER",
-  "GMAIL_USER",
-  "GMAIL_APP_PASSWORD",
   "EMAIL_FROM",
   "CRON_SECRET",
   "SUPABASE_URL",
@@ -73,16 +71,28 @@ for (const key of ["DATABASE_URL", "DIRECT_URL"])
     );
   }
 
+if (process.env.EMAIL_PROVIDER === "gmail") {
+  if (
+    process.env.GMAIL_USER !== "jointoga@gmail.com" ||
+    process.env.EMAIL_FROM !== process.env.GMAIL_USER ||
+    !/^[a-zA-Z]{16}$/.test(process.env.GMAIL_APP_PASSWORD || "")
+  )
+    problems.push(
+      "Configure the Gmail rollback credentials and matching sender.",
+    );
+} else if (process.env.EMAIL_PROVIDER === "resend") {
+  if (!process.env.RESEND_API_KEY || !process.env.RESEND_WEBHOOK_SECRET)
+    problems.push("Resend API key and webhook secret must be configured.");
+  if (process.env.EMAIL_FROM !== "notifications@jointoga.com")
+    problems.push("Resend sender must be notifications@jointoga.com.");
+} else problems.push("EMAIL_PROVIDER must be gmail or resend.");
 if (
-  process.env.EMAIL_PROVIDER !== "gmail" ||
-  process.env.GMAIL_USER !== "jointoga@gmail.com" ||
-  process.env.EMAIL_FROM !== process.env.GMAIL_USER ||
-  !/^[a-zA-Z]{16}$/.test(process.env.GMAIL_APP_PASSWORD || "")
-) {
+  process.env.ENFORCE_VERIFIED_ACCOUNTS === "true" &&
+  process.env.REQUIRE_EMAIL_VERIFICATION !== "true"
+)
   problems.push(
-    "Configure Gmail SMTP with the matching jointoga@gmail.com sender and a 16-letter App Password.",
+    "Account verification enforcement requires REQUIRE_EMAIL_VERIFICATION=true.",
   );
-}
 
 if (problems.length) {
   console.error(

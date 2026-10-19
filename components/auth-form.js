@@ -49,8 +49,14 @@ export default function AuthForm({
     />
   );
 }
-function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
-  const [email, setEmail] = useState(""),
+export function VerifiedAuthForm({
+  onSuccess,
+  onBusy = () => {},
+  recoveryOnly = false,
+  lockedEmail = "",
+}) {
+  const [recovering, setRecovering] = useState(recoveryOnly);
+  const [email, setEmail] = useState(lockedEmail),
     [mode, setMode] = useState("code"),
     [password, setPassword] = useState("");
   const [pending, setPending] = useState(null),
@@ -65,9 +71,14 @@ function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
   useEffect(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(storageKey));
-      if (saved && Date.parse(saved.expiresAt) > Date.now()) {
+      if (
+        saved &&
+        (!lockedEmail || saved.email === lockedEmail) &&
+        Date.parse(saved.expiresAt) > Date.now()
+      ) {
         setEmail(saved.email);
         setPending(saved);
+        setRecovering(saved.purpose === "recovery");
       } else sessionStorage.removeItem(storageKey);
     } catch {}
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -124,10 +135,16 @@ function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
   }
   async function requestCode() {
     if (!isAllowedEmail(email)) throw new Error(DOMAIN_ERROR);
-    const data = await api("auth/otp/request", "POST", { email });
+    const purpose = lockedEmail
+      ? "migrate"
+      : recovering
+        ? "recovery"
+        : "signup";
+    const data = await api("auth/otp/request", "POST", { email, purpose });
     const value = {
       email: normalizeEmail(email),
       challenge: data.challenge,
+      purpose,
       expiresAt: data.expiresAt,
       resendAt: data.resendAt,
     };
@@ -165,6 +182,7 @@ function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
               email: pending.email,
               challenge: pending.challenge,
               code: digits.join(""),
+              purpose: lockedEmail ? "migrate" : pending.purpose || "signup",
             });
             try {
               sessionStorage.removeItem(storageKey);
@@ -239,7 +257,7 @@ function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
           className="button burgundy full"
           disabled={busy || expired || digits.join("").length !== 6}
         >
-          {busy ? "Verifying…" : "Verify and sign in"}
+          {busy ? "Verifying…" : "Verify"}
         </button>
         <div className="otp-actions">
           <button
@@ -263,30 +281,32 @@ function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
               } catch {}
             }}
           >
-            Use a different email
+            {lockedEmail ? "Back" : "Use a different email"}
           </button>
         </div>
         <p className="muted">
           By continuing you agree to our <a href="/terms">Terms</a> and{" "}
-          <a href="/privacy">Privacy Policy</a>. Add {CONTACT_EMAIL} to your
+          <a href="/privacy">Privacy Policy</a>. Add login@jointoga.com to your
           contacts so Toga emails reach your inbox.
         </p>
-        <button
-          type="button"
-          className="text-button"
-          disabled={busy}
-          onClick={() => {
-            setPending(null);
-            setMode("password");
-            setError("");
-            setPreview("");
-            try {
-              sessionStorage.removeItem(storageKey);
-            } catch {}
-          }}
-        >
-          Use an existing password
-        </button>
+        {!lockedEmail && (
+          <button
+            type="button"
+            className="text-button"
+            disabled={busy}
+            onClick={() => {
+              setPending(null);
+              setMode("password");
+              setError("");
+              setPreview("");
+              try {
+                sessionStorage.removeItem(storageKey);
+              } catch {}
+            }}
+          >
+            Use an existing password
+          </button>
+        )}
         <p className="muted otp-help">
           Didn't get the code? Check Spam/Junk, then try Resend code. A
           successful resend replaces the previous code.
@@ -318,11 +338,20 @@ function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
       }}
     >
       <SeasonalDecor variant="auth" />
+      <h3>
+        {lockedEmail
+          ? "Verify your email"
+          : recovering
+            ? "Recover your account"
+            : mode === "code"
+              ? "Join Toga"
+              : "Sign in to Toga"}
+      </h3>
       <p>
         {mode === "code"
-          ? recoveryOnly
-            ? "Email recovery is for existing accounts. Delivery is currently unreliable. If you cannot receive a code, contact jointoga@gmail.com for help proving account ownership."
-            : "Sign up or log in with a six-digit email code. You’ll stay signed in on this browser."
+          ? recovering
+            ? "Verify your email to recover access and set a new password."
+            : "Verify your Georgia Tech email, then create a password for future sign-ins."
           : "Use your existing Toga password."}
       </p>
       <Field label="Email address">
@@ -336,7 +365,7 @@ function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
             spellCheck="false"
             placeholder="you@gatech.edu"
             value={email}
-            disabled={busy}
+            disabled={busy || Boolean(lockedEmail)}
             onChange={(e) => setEmail(e.target.value)}
           />
         )}
@@ -362,25 +391,28 @@ function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
         </p>
       )}
       <button className="button burgundy full" disabled={busy}>
-        {busy ? "Please wait…" : mode === "code" ? "Send code" : "Log in"}
+        {busy ? "Please wait…" : mode === "code" ? "Continue" : "Sign in"}
       </button>
-      <button
-        type="button"
-        className="text-button"
-        disabled={busy}
-        onClick={() => {
-          setMode(mode === "code" ? "password" : "code");
-          setPassword("");
-          setError("");
-        }}
-      >
-        {mode === "code"
-          ? "Use a password instead"
-          : "Forgot password? Sign in with a code"}
-      </button>
+      {!lockedEmail && (
+        <button
+          type="button"
+          className="text-button"
+          disabled={busy}
+          onClick={() => {
+            setRecovering(mode === "password");
+            setMode(mode === "code" ? "password" : "code");
+            setPassword("");
+            setError("");
+          }}
+        >
+          {mode === "code"
+            ? "Already have an account? Sign in"
+            : "Forgot password? Verify your email"}
+        </button>
+      )}
       <p className="muted">
         By continuing you agree to our <a href="/terms">Terms</a> and{" "}
-        <a href="/privacy">Privacy Policy</a>. Add {CONTACT_EMAIL} to your
+        <a href="/privacy">Privacy Policy</a>. Add login@jointoga.com to your
         contacts so Toga emails reach your inbox. Use your Georgia Tech email
         address. Check Junk/Spam if your email doesn’t arrive.
       </p>

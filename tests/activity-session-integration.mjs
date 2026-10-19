@@ -4,7 +4,7 @@ import {PrismaClient} from '@prisma/client';
 import {createHash,randomUUID} from 'node:crypto';
 import {hashPassword} from '../lib/passwords.mjs';
 const base=process.env.TEST_URL || 'http://127.0.0.1:3004';
-if (!['127.0.0.1','localhost'].includes(new URL(base).hostname) || !['127.0.0.1','localhost'].includes(new URL(process.env.DATABASE_URL).hostname) || process.env.GMAIL_APP_PASSWORD) throw new Error('Local email-disabled tests only');
+if (!['127.0.0.1','localhost'].includes(new URL(base).hostname) || !['127.0.0.1','localhost'].includes(new URL(process.env.DATABASE_URL).hostname) || (process.env.GMAIL_APP_PASSWORD || process.env.RESEND_API_KEY)) throw new Error('Local email-disabled tests only');
 const db=new PrismaClient(),prefix=`activity-${randomUUID()}`, ids=[`${prefix}-owner`,`${prefix}-renter`,`${prefix}-other`],password='Local activity test password 123';
 let listingId;
 async function call(route,{cookie='',method='GET',body}={}){

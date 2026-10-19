@@ -4,6 +4,7 @@ import "./seasonal.css";
 import "./globals.css";
 import { DESCRIPTION } from "../lib/campus.mjs";
 export const metadata = {
+  metadataBase: new URL(process.env.APP_URL || "https://jointoga.com"),
   title: "Toga",
   description: DESCRIPTION,
   icons: { icon: "/logo.png", apple: "/logo.png" },

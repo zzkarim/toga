@@ -10,7 +10,7 @@ if (
   !["localhost", "127.0.0.1"].includes(
     new URL(process.env.DATABASE_URL).hostname,
   ) ||
-  process.env.GMAIL_APP_PASSWORD
+  (process.env.GMAIL_APP_PASSWORD || process.env.RESEND_API_KEY)
 )
   throw Error("Local-only tests");
 const db = new PrismaClient(),

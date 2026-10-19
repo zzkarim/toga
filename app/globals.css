@@ -2107,3 +2107,9 @@ footer > button:last-child {
 .tag-picker > .field {
   margin-top: 12px;
 }
+
+.secure-account { max-width: 520px; margin: 32px auto; padding: 0 16px; }
+.secure-account > section { padding: 24px; }
+.secure-account input { width: 100%; min-width: 0; }
+.secure-account h1 { font-size: clamp(24px, 6vw, 34px); }
+@media(max-width:375px) { .secure-account {padding:0 10px;} .secure-account > section {padding:16px;} }

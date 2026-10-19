@@ -7,7 +7,7 @@ if (
   !["127.0.0.1", "localhost"].includes(
     new URL(process.env.DATABASE_URL).hostname,
   ) ||
-  process.env.GMAIL_APP_PASSWORD
+  (process.env.GMAIL_APP_PASSWORD || process.env.RESEND_API_KEY)
 )
   throw Error("Local test only");
 const email = `failure-test-${Date.now()}@gatech.edu`;
