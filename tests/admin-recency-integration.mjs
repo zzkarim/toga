@@ -18,8 +18,8 @@ const db = new PrismaClient(),
 try {
   // Deliberately insert the newer records before the older records.
   for (const [suffix, createdAt] of [
-    ["new", new Date("2026-10-18T12:00:00Z")],
-    ["old", new Date("2026-10-17T12:00:00Z")],
+    ["new", new Date(Date.now() + 120000)],
+    ["old", new Date(Date.now() + 60000)],
   ]) {
     const id = prefix + "-" + suffix;
     ids.push(id);

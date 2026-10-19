@@ -19,6 +19,7 @@ export default function AuthForm({ onSuccess, onBusy }) {
     [error, setError] = useState(""),
     [now, setNow] = useState(Date.now()),
     [preview, setPreview] = useState("");
+  const [deliveryStatus, setDeliveryStatus] = useState("");
   const inputs = useRef([]),
     lock = useRef(false);
   useEffect(() => {
@@ -34,6 +35,32 @@ export default function AuthForm({ onSuccess, onBusy }) {
   }, []);
   useEffect(() => {
     if (pending) inputs.current[0]?.focus();
+  }, [pending]);
+  useEffect(() => {
+    setDeliveryStatus("");
+    if (!pending) return;
+    let stopped = false,
+      timer;
+    async function check() {
+      if (stopped || Date.parse(pending.expiresAt) <= Date.now()) return;
+      if (!document.hidden) {
+        try {
+          const result = await api("auth/otp/status", "POST", {
+            email: pending.email,
+            challenge: pending.challenge,
+          });
+          if (!stopped) setDeliveryStatus(result.status);
+        } catch {
+          /* Delivery checks must not interrupt code entry. */
+        }
+      }
+      if (!stopped) timer = setTimeout(check, 60000);
+    }
+    timer = setTimeout(check, 15000);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [pending]);
   const cooldown = pending
     ? Math.max(0, Math.ceil((Date.parse(pending.resendAt) - now) / 1000))
@@ -159,6 +186,14 @@ export default function AuthForm({ onSuccess, onBusy }) {
             {error}
           </p>
         )}
+        {deliveryStatus === "Bounced" && (
+          <p className="error" role="status">
+            Your email provider reported that this code could not be delivered.
+            Wait for Resend code to become available, then try again. If it
+            keeps failing, contact {CONTACT_EMAIL}. You can also use an existing
+            password below.
+          </p>
+        )}
         {expired && <p role="status">This code expired. Request a new one.</p>}
         <button
           className="button burgundy full"
@@ -196,9 +231,25 @@ export default function AuthForm({ onSuccess, onBusy }) {
           <a href="/privacy">Privacy Policy</a>. Add {CONTACT_EMAIL} to your
           contacts so Toga emails reach your inbox.
         </p>
+        <button
+          type="button"
+          className="text-button"
+          disabled={busy}
+          onClick={() => {
+            setPending(null);
+            setMode("password");
+            setError("");
+            setPreview("");
+            try {
+              sessionStorage.removeItem(storageKey);
+            } catch {}
+          }}
+        >
+          Use an existing password
+        </button>
         <p className="muted otp-help">
-          Didn't get the code? Check your spam or junk folder. Resending
-          replaces the previous code.
+          Didn't get the code? Check Spam/Junk, then try Resend code. A
+          successful resend replaces the previous code.
         </p>
         {preview && (
           <p>

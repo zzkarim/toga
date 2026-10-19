@@ -1,3 +1,6 @@
+import { isIP } from "node:net";
+import { requestVerification, otpEmailId } from "../../../lib/verification.js";
+import { syncGmailBounces } from "../../../lib/gmail-bounces.js";
 import { moderate } from "../../../lib/moderation";
 import { replacementValue } from "../../../lib/replacement-value.mjs";
 import {
@@ -11,16 +14,7 @@ import { recordRentalActivity } from "../../../lib/rental-activity.mjs";
 import { notifyAdminOfMarketplaceEvent } from "../../../lib/admin-notifications.mjs";
 import { paymentInformation } from "../../../lib/payment.mjs";
 import { authLog } from "../../../lib/auth-log.mjs";
-import {
-  generateCode,
-  codeDigest,
-  codeMatches,
-  codeEmail,
-  OTP_SUBJECT,
-  OTP_TTL,
-  OTP_COOLDOWN,
-  OTP_ATTEMPTS,
-} from "../../../lib/otp.mjs";
+import { codeMatches, OTP_SUBJECT, OTP_ATTEMPTS } from "../../../lib/otp.mjs";
 import {
   hashPassword,
   verifyPassword,
@@ -235,52 +229,30 @@ async function handle(req, ctx) {
     const preview =
       process.env.NODE_ENV !== "production" &&
       process.env.DEV_EMAIL_PREVIEW === "true";
-    if (!emailConfigured() && !preview)
-      fail(
-        "Email verification is temporarily unavailable. Please try again shortly.",
-        503,
-      );
-    await limit(`otp-request:${email}`, 5, 15 * 60000);
-    await limit("otp-request:global", 100, 60000);
-    const code = generateCode(),
-      challenge = randomBytes(24).toString("hex"),
-      now = new Date();
-    const digest = codeDigest(email, challenge, code);
-    const issued = await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtext(${email})::bigint)`;
-      const existing = await tx.emailOtp.findUnique({ where: { email } });
-      if (existing && existing.resendAt > now) return false;
-      const data = {
-        challenge,
-        digest,
-        expiresAt: new Date(+now + OTP_TTL),
-        resendAt: new Date(+now + OTP_COOLDOWN),
-        attempts: 0,
-      };
-      await tx.emailOtp.upsert({
-        where: { email },
-        create: { email, ...data },
-        update: data,
-      });
-      return true;
+    const forwarded =
+      process.env.VERCEL === "1"
+        ? req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim()
+        : null;
+    return requestVerification(email, {
+      preview,
+      ip: forwarded && isIP(forwarded) ? forwarded : null,
     });
-    if (!issued) {
-      authLog("rate_limit_triggered", { reason: "resend_cooldown" });
-      fail("Please wait 60 seconds before requesting another code.", 429);
-    }
-    const delivery = await sendEmail(email, OTP_SUBJECT, codeEmail(code));
-    if (delivery.error)
-      fail(
-        "The email service could not confirm sending. Wait a minute, then request a new code.",
-        503,
-      );
-    return {
-      ok: true,
-      challenge,
-      expiresAt: new Date(+now + OTP_TTL).toISOString(),
-      resendAt: new Date(+now + OTP_COOLDOWN).toISOString(),
-      ...(preview ? { previewCode: code } : {}),
-    };
+  }
+  if (route === "auth/otp/status" && method === "POST") {
+    const email = normalizeEmail(body.email),
+      challenge = String(body.challenge || "");
+    if (!isAllowedEmail(email) || !/^[a-f0-9]{48}$/.test(challenge))
+      fail("Request a new verification code.", 400);
+    const otp = await db.emailOtp.findUnique({ where: { email } });
+    if (!otp || otp.challenge !== challenge || otp.expiresAt <= new Date())
+      return { status: "Unavailable" };
+    await limit(`otp-status:${challenge}`, 30, 60000);
+    await syncGmailBounces();
+    const message = await db.email.findUnique({
+      where: { id: otpEmailId(challenge) },
+      select: { deliveryStatus: true },
+    });
+    return { status: message?.deliveryStatus || "Unknown" };
   }
   if (route === "auth/otp/verify" && method === "POST") {
     const email = normalizeEmail(body.email),
@@ -985,6 +957,11 @@ async function handle(req, ctx) {
       return moderate(tx, u, body);
     });
   }
+  if (route === "admin/email-sync" && method === "POST") {
+    const u = await requireUser();
+    if (u.role !== "admin") fail("Admin access required.", 403);
+    return syncGmailBounces();
+  }
   if (route === "admin" && method === "GET") {
     const u = await requireUser();
     if (u.role !== "admin") fail("Admin access required.", 403);
@@ -1010,6 +987,8 @@ async function handle(req, ctx) {
             providerMessageId: true,
             error: true,
             createdAt: true,
+            attempts: true,
+            claimedAt: true,
           },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 50,

@@ -1,4 +1,5 @@
 "use client";
+import { emailStatusLabel, emailType } from "../lib/email-status.mjs";
 import { displayCategories } from "../lib/rules.mjs";
 import { adminUserName } from "../lib/profile.mjs";
 import { useState } from "react";
@@ -65,6 +66,38 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
           : "";
   return (
     <section className="moderation">
+      {tab === "emails" && (
+        <div>
+          <p>
+            Provider acceptance does not confirm receipt. Delivery checks
+            inspect recent Gmail failure notices.
+          </p>
+          <button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                const result = await api("admin/email-sync", "POST", {});
+                setMessage(
+                  result.status === "checked"
+                    ? `Delivery check completed: ${result.matched} newly matched failures.`
+                    : result.status === "recently-checked"
+                      ? "A delivery check ran recently. Try again in a minute."
+                      : "Delivery check unavailable. Try again later or inspect the sender mailbox.",
+                );
+                await onRefresh();
+              } catch {
+                setError("Couldn't check delivery failures. Please try again.");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? "Checking…" : "Check delivery failures"}
+          </button>
+        </div>
+      )}
       <div className="admin-tabs" aria-label="Admin sections">
         {["users", "listings", "requests", "reports", "emails", "audit"].map(
           (t) => (
@@ -314,9 +347,28 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
             {tab === "emails" && (
               <>
                 <p>
-                  {row.to} · {row.deliveryStatus}
+                  {row.to} · {emailStatusLabel(row.deliveryStatus)}
+                </p>
+                <p>
+                  {emailType(row.subject)} · Attempts: {row.attempts}
                 </p>
                 <p>{row.error || ""}</p>
+                {row.sentAt && (
+                  <p>
+                    Provider accepted:{" "}
+                    <time dateTime={row.sentAt}>
+                      {new Date(row.sentAt).toLocaleString()}
+                    </time>
+                  </p>
+                )}
+                {row.providerMessageId && (
+                  <details>
+                    <summary>Provider message ID</summary>
+                    <p style={{ overflowWrap: "anywhere" }}>
+                      {row.providerMessageId}
+                    </p>
+                  </details>
+                )}
                 <p>
                   <time dateTime={row.createdAt}>
                     {new Date(row.createdAt).toLocaleString()}

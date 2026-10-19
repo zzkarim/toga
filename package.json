@@ -25,7 +25,9 @@
   "dependencies": {
     "@prisma/client": "6.19.3",
     "heic-to": "^1.6.6",
+    "imapflow": "2.5.5",
     "lucide-react": "^0.468.0",
+    "mailparser": "3.9.46",
     "next": "^15.5.12",
     "nodemailer": "^10.1.1",
     "react": "^19.1.0",
