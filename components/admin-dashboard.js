@@ -1,4 +1,5 @@
 "use client";
+import { displayCategories } from "../lib/rules.mjs";
 import { adminUserName } from "../lib/profile.mjs";
 import { useState } from "react";
 import { api, Modal, Field, money } from "./ui";
@@ -110,6 +111,21 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
                 row.action ||
                 "Report"}
             </h2>
+            {!["emails", "audit"].includes(tab) && (
+              <p className="fine-print">
+                <time dateTime={row.createdAt}>
+                  {
+                    {
+                      users: "Joined",
+                      listings: "Listed",
+                      requests: "Requested",
+                      reports: "Reported",
+                    }[tab]
+                  }{" "}
+                  {new Date(row.createdAt).toLocaleString()}
+                </time>
+              </p>
+            )}
             {tab === "users" && (
               <>
                 <p>
@@ -161,7 +177,7 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
               <>
                 <p>
                   {row.status} · {row.moderationStatus} ·{" "}
-                  {(row.categories || []).join(", ") || "No tags"}
+                  {displayCategories(row).join(", ") || "No tags"}
                 </p>
                 <p>
                   Replacement value:{" "}
@@ -301,7 +317,11 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
                   {row.to} · {row.deliveryStatus}
                 </p>
                 <p>{row.error || ""}</p>
-                <p>{new Date(row.createdAt).toLocaleString()}</p>
+                <p>
+                  <time dateTime={row.createdAt}>
+                    {new Date(row.createdAt).toLocaleString()}
+                  </time>
+                </p>
               </>
             )}
             {tab === "audit" && (
@@ -312,7 +332,9 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
                 <p>{row.note}</p>
                 <p>
                   {who(row.adminId)} ·{" "}
-                  {new Date(row.createdAt).toLocaleString()}
+                  <time dateTime={row.createdAt}>
+                    {new Date(row.createdAt).toLocaleString()}
+                  </time>
                 </p>
               </>
             )}

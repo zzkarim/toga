@@ -49,7 +49,12 @@ import {
 } from "../../../lib/profile.mjs";
 import { hash, fail, limit } from "../../../lib/security";
 import { ownPhotos, savePhoto, readPhoto } from "../../../lib/uploads";
-import { listingTags, dateRange, transition } from "../../../lib/rules.mjs";
+import {
+  listingTags,
+  customCategoryValue,
+  dateRange,
+  transition,
+} from "../../../lib/rules.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -148,9 +153,10 @@ async function listingData(body, userId) {
   } catch (error) {
     fail(error.message);
   }
-  let tags;
+  let tags, customCategory;
   try {
     tags = listingTags(body);
+    customCategory = customCategoryValue(tags, body.customCategory);
   } catch (error) {
     fail(error.message);
   }
@@ -181,6 +187,7 @@ async function listingData(body, userId) {
     title: title.trim(),
     description,
     categories: tags,
+    customCategory,
     size,
     condition,
     price: Math.round(price * 100) / 100,
@@ -983,10 +990,16 @@ async function handle(req, ctx) {
     if (u.role !== "admin") fail("Admin access required.", 403);
     const [users, listings, requests, reports, emails, audit] =
       await Promise.all([
-        db.user.findMany(),
-        db.listing.findMany(),
-        db.rentalRequest.findMany(),
-        db.problemReport.findMany(),
+        db.user.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }] }),
+        db.listing.findMany({
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        }),
+        db.rentalRequest.findMany({
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        }),
+        db.problemReport.findMany({
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        }),
         db.email.findMany({
           select: {
             id: true,
@@ -1001,7 +1014,10 @@ async function handle(req, ctx) {
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 50,
         }),
-        db.adminAudit.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+        db.adminAudit.findMany({
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 100,
+        }),
       ]);
     const seenAuth = new Set();
     const latestEmails = emails.filter((email) => {

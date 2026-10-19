@@ -89,6 +89,20 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
               </button>
             ))}
           </div>
+          {(form.categories || []).includes("Custom") && (
+            <Field label="Custom category">
+              {(id) => (
+                <input
+                  id={id}
+                  required
+                  maxLength={40}
+                  placeholder="Enter category…"
+                  value={form.customCategory || ""}
+                  onChange={(e) => set("customCategory", e.target.value)}
+                />
+              )}
+            </Field>
+          )}
         </fieldset>
         <Field label="Price per day ($)">
           {(id) => (

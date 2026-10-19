@@ -68,7 +68,7 @@ export default function SizeInput({ fields, onChange }) {
         <Field
           label={
             fields.type === "Custom"
-              ? "Your size"
+              ? "Custom size"
               : fields.type === "Shoes"
                 ? "Shoe size"
                 : "Numeric size"

@@ -132,13 +132,18 @@ try {
   ]) {
     if (!listing)
       listing = (
-        await call("listings", "POST", { ...draft, categories: tags }, 1)
+        await call(
+          "listings",
+          "POST",
+          { ...draft, categories: tags, customCategory: "Test clothing" },
+          1,
+        )
       ).listing;
     else
       await call(
         "listings/" + listing.id,
         "PATCH",
-        { ...draft, categories: tags },
+        { ...draft, categories: tags, customCategory: "Test clothing" },
         1,
       );
     assert.deepEqual(

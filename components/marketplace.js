@@ -20,7 +20,7 @@ import {
 import { api, Field, Modal, PhotoUpload, money } from "../components/ui";
 import { ListingForm, ProfileForm, RentalDates } from "../components/forms";
 import { CAMPUS, DESCRIPTION, safeDestination } from "../lib/campus.mjs";
-import { browseCategories } from "../lib/rules.mjs";
+import { browseCategories, displayCategories } from "../lib/rules.mjs";
 import { filterListings, sizes } from "../lib/browse.mjs";
 const date = (value) =>
   new Date(value).toLocaleDateString("en-US", {
@@ -474,7 +474,7 @@ export default function Home() {
                     </div>
                     <div className="listing-info">
                       <span className="item-category">
-                        {[...(item.categories || []), item.condition].join(
+                        {[...displayCategories(item), item.condition].join(
                           " · ",
                         )}
                       </span>
@@ -1152,7 +1152,7 @@ export default function Home() {
               </div>
               <div>
                 <div className="eyebrow">
-                  {(selected.categories || []).join(" · ")}
+                  {displayCategories(selected).join(" · ")}
                 </div>
                 <div className="detail-price">
                   {money(selected.price)}

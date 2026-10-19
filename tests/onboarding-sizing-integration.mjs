@@ -137,7 +137,8 @@ try {
   const body = {
     title: "Local sizing check",
     description: "Disposable sizing fixture",
-    categories: [],
+    categories: ["Everyday", "Custom"],
+    customCategory: " Streetwear ",
     size: "M",
     condition: "Good",
     price: 5,
@@ -146,6 +147,33 @@ try {
   };
   const created = await call("listings", "POST", body);
   listingId = created.listing.id;
+  assert.equal(created.listing.customCategory, "Streetwear");
+  await call(
+    `listings/${listingId}`,
+    "PATCH",
+    { ...body, customCategory: "" },
+    400,
+  );
+  await call(`listings/${listingId}`, "PATCH", {
+    ...body,
+    customCategory: "Vintage",
+  });
+  assert.equal(
+    (await call("listings?mine=true")).listings.find((x) => x.id === listingId)
+      .customCategory,
+    "Vintage",
+  );
+  await call(`listings/${listingId}`, "PATCH", {
+    ...body,
+    categories: ["Everyday"],
+    customCategory: "",
+  });
+  assert.equal(
+    (await call("listings?mine=true")).listings.find((x) => x.id === listingId)
+      .customCategory,
+    null,
+  );
+
   for (const size of [
     "M",
     "XXS",

@@ -52,6 +52,7 @@ model Listing {
   title String
   description String
   categories String[] @default([])
+  customCategory String?
   moderationStatus String @default("Visible")
   category String @default("")
   size String
