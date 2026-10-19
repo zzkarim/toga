@@ -138,3 +138,62 @@ test("admin labels distinguish acceptance and diagnostics never copy arbitrary S
   assert.match(diagnostic, /5.7.1/);
   assert.ok(!diagnostic.includes("private"));
 });
+
+test("complete mailbox scan parses notices and records matched bounces", async () => {
+  let released = false,
+    closed = false;
+  const store = {
+    $queryRaw: async () => [{ id: "gmail-bounce-scan" }],
+    rateLimit: { updateMany: async () => ({ count: 1 }) },
+    email: {
+      updateMany: async ({ where }) => {
+        assert.equal(where.providerMessageId, id);
+        return { count: 1 };
+      },
+    },
+  };
+  const client = {
+    connect: async () => {},
+    getMailboxLock: async (folder, options) => {
+      assert.equal(folder, "INBOX");
+      assert.equal(options.readOnly, true);
+      return {
+        release: () => {
+          released = true;
+        },
+      };
+    },
+    search: async (query) => {
+      assert.equal(query.smaller, undefined);
+      return [1];
+    },
+    fetchOne: async () => ({ source: Buffer.from(source) }),
+    close: () => {
+      closed = true;
+    },
+  };
+  assert.deepEqual(
+    await syncGmailBounces({ store, client, configured: true }),
+    { status: "checked", matched: 1 },
+  );
+  assert.ok(released && closed);
+});
+test("interrupted IMAP search or fetch is unavailable, never a successful empty scan", async () => {
+  for (const searchFails of [true, false]) {
+    const store = {
+      $queryRaw: async () => [{ id: "gmail-bounce-scan" }],
+      rateLimit: { updateMany: async () => ({ count: 1 }) },
+    };
+    const client = {
+      connect: async () => {},
+      getMailboxLock: async () => ({ release() {} }),
+      search: async () => (searchFails ? false : [1]),
+      fetchOne: async () => false,
+      close() {},
+    };
+    assert.equal(
+      (await syncGmailBounces({ store, client, configured: true })).status,
+      "unavailable",
+    );
+  }
+});
