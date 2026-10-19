@@ -73,7 +73,7 @@ async function login(actor) {
   await call(
     "me",
     "PATCH",
-    { name: `Test ${actor}`, phone: "+1 404 555 0111" },
+    { name: `Test ${actor}`, phone: actor === "lender" ? "+14045550202" : actor === "renter" ? "+14045550101" : "+14045550303", paymentInfo: actor === "lender" ? "Venmo @lender-test" : "Cash renter-only" },
     actor,
   );
   await call("auth/verify", "POST", { token }, actor, 400);
@@ -232,6 +232,8 @@ try {
     (x) => x.status === "Pending",
   );
   assert.equal(r.partner.phone, undefined);
+  assert.equal(r.partner.paymentInfo, undefined);
+  assert.equal((await call("requests", "GET", null, "lender")).requests.find(x=>x.id===r.id).partner.phone, undefined);
   assert.equal(r.pricePerDay, data.price);
   await call(`listings/${listing.id}`, "DELETE", null, "lender", 400);
   await call(`requests/${r.id}/accept`, "POST", {}, "renter", 400);
@@ -245,6 +247,18 @@ try {
       (x) => x.id === r.id,
     ).partner.phone,
   );
+  const renterView = await call("requests", "GET", null, "renter"), lenderView = await call("requests", "GET", null, "lender");
+  const renterPartner = renterView.requests.find(x=>x.id===r.id).partner, lenderPartner = lenderView.requests.find(x=>x.id===r.id).partner;
+  assert.equal(renterView.viewerId, renter); assert.equal(lenderView.viewerId, lender);
+  assert.equal(renterPartner.id, lender); assert.equal(renterPartner.name, "Test lender"); assert.equal(renterPartner.phone, "+14045550202"); assert.equal(renterPartner.paymentInfo, "Venmo @lender-test");
+  assert.equal(lenderPartner.id, renter); assert.equal(lenderPartner.name, "Test renter"); assert.equal(lenderPartner.phone, "+14045550101"); assert.equal(lenderPartner.paymentInfo, undefined);
+  assert.ok(!(await call("requests", "GET", null, "other")).requests.some(x=>x.id===r.id));
+  await call(`requests/${r.id}/pickup`, "POST", {}, "other", 404);
+  await call(`requests/${r.id}`, "GET", null, "other", 404);
+  await call(`rentals/${r.id}`, "GET", null, "other", 404);
+  const renterMail=await db.email.findUnique({where:{id:`request-${r.id}-accept`}}), lenderMail=await db.email.findUnique({where:{id:`request-${r.id}-accept-lender`}});
+  assert.match(renterMail.text,/Test lender/); assert.doesNotMatch(renterMail.text,/Test renter/);
+  assert.match(lenderMail.text,/Test renter/); assert.doesNotMatch(lenderMail.text,/Test lender/);
   await db.rentalRequest.update({
     where: { id: r.id },
     data: { startDate: new Date(Date.now() + 3600000) },

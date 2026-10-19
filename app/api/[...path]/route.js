@@ -1,3 +1,4 @@
+import { rentalContact } from "../../../lib/rental-contact.mjs";
 import {
   requireEmailVerification,
   needsAccountSecurity,
@@ -869,25 +870,11 @@ async function handle(req, ctx) {
       where: { id: { in: requests.flatMap((r) => [r.renterId, r.lenderId]) } },
     });
     return {
+      viewerId: u.id,
       requests: requests.map((r) => ({
         ...r,
         listing: { ...r.listing, photos: JSON.parse(r.listing.photos) },
-        partner: (() => {
-          const p = people.find(
-            (p) => p.id === (r.renterId === u.id ? r.lenderId : r.renterId),
-          );
-          return {
-            ...publicUser(p),
-            ...(["Confirmed", "Active Rental", "Completed"].includes(r.status)
-              ? {
-                  phone: p.phone,
-                  ...(r.renterId === u.id
-                    ? { paymentInfo: p.paymentInfo }
-                    : {}),
-                }
-              : {}),
-          };
-        })(),
+        ...rentalContact(r, u.id, people),
       })),
     };
   }
@@ -1016,7 +1003,10 @@ async function handle(req, ctx) {
         const recipient = await tx.user.findUnique({
           where: { id: action === "cancel" ? r.lenderId : r.renterId },
         });
-        return tx.email.create({
+        const counterpart = await tx.user.findUnique({
+          where: { id: recipient.id === r.renterId ? r.lenderId : r.renterId },
+        });
+        const primary = await tx.email.create({
           data: {
             provider: process.env.EMAIL_PROVIDER || "gmail",
             id: `request-${r.id}-${action}`,
@@ -1025,11 +1015,31 @@ async function handle(req, ctx) {
               kind: "status",
               title: r.listing.title,
               status: next.requestStatus,
+              name: counterpart?.name,
+              recipientRole: recipient.id === r.renterId ? "renter" : "lender",
             }),
           },
         });
+        if (action === "accept") {
+          const lenderCopy = await tx.email.create({
+            data: {
+              provider: process.env.EMAIL_PROVIDER || "gmail",
+              id: `request-${r.id}-accept-lender`,
+              to: counterpart.email,
+              ...notificationMail({
+                kind: "status",
+                title: r.listing.title,
+                status: next.requestStatus,
+                name: recipient.name,
+                recipientRole: "lender",
+              }),
+            },
+          });
+          return [primary, lenderCopy];
+        }
+        return [primary];
       }
-      return null;
+      return [];
     });
     const event = {
       accept: "accept",
@@ -1065,7 +1075,8 @@ async function handle(req, ctx) {
       };
     }
     after(async () => {
-      if (notification) await Promise.allSettled([deliverEmail(notification)]);
+      for (const message of notification)
+        await Promise.allSettled([deliverEmail(message)]);
       if (adminNotification)
         await notifyAdminOfMarketplaceEvent(adminNotification);
     });

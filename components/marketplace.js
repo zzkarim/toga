@@ -1,10 +1,12 @@
 "use client";
-import { needsProfile, displayPhone } from "../lib/profile.mjs";
+import RentalCoordination from "./rental-coordination";
+import { rentalResponseMatches } from "../lib/rental-contact.mjs";
+import { needsProfile } from "../lib/profile.mjs";
 import AdminDashboard from "./admin-dashboard";
 import SeasonalDecor from "./seasonal-decor";
 import { needsAcceptance, TERMS_VERSION } from "../lib/legal.mjs";
 import AuthForm from "../components/auth-form";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Search,
   ArrowRight,
@@ -59,8 +61,11 @@ export default function Home({ requireEmailVerification = true }) {
     [currentPassword, setCurrentPassword] = useState("");
   const [token, setToken] = useState(""),
     [destination, setDestination] = useState("/?view=browse");
+  const refreshVersion = useRef(0);
   async function refresh() {
+    const version = ++refreshVersion.current;
     const { user: me } = await api("me");
+    if (version !== refreshVersion.current) return;
     if (me?.needsAccountSecurity) {
       window.location.replace("/secure-account");
       return;
@@ -88,6 +93,12 @@ export default function Home({ requireEmailVerification = true }) {
       api("requests"),
       api("activity"),
     ]);
+    if (version !== refreshVersion.current) return;
+    if (!rentalResponseMatches(c, me.id)) {
+      setRentals([]);
+      window.location.reload();
+      return;
+    }
     setListings(a.listings);
     setMine(b.listings);
     setRentals(c.requests);
@@ -143,6 +154,11 @@ export default function Home({ requireEmailVerification = true }) {
           api("requests"),
         ]);
         if (!stopped) {
+          if (!rentalResponseMatches(latest, user.id)) {
+            setRentals([]);
+            window.location.reload();
+            return;
+          }
           setActivity(updates);
           setRentals(latest.requests);
           setActivityError("");
@@ -769,26 +785,7 @@ export default function Home({ requireEmailVerification = true }) {
                           {r.partner.name}
                         </p>
                         <p>{money(r.pricePerDay)} / day</p>
-                        {(r.partner.phone || r.partner.paymentInfo) && (
-                          <div className="contact-details">
-                            {r.partner.phone && (
-                              <a href={`tel:${r.partner.phone}`}>
-                                {r.partner.name} ·{" "}
-                                {displayPhone(r.partner.phone)}
-                              </a>
-                            )}
-                            <small>
-                              Coordinate pickup and payment with your rental
-                              partner.
-                            </small>
-                            {r.partner.paymentInfo && (
-                              <div className="payment-info">
-                                <strong>Payment information</strong>
-                                <div>{r.partner.paymentInfo}</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <RentalCoordination rental={r} />
                         {r.status === "Pending" && (
                           <p className="request-hint">
                             {r.lenderId === user.id
