@@ -2166,12 +2166,13 @@ footer > button:last-child {
   border-color: var(--border);
 }
 .calendar-day.selected {
-  background: var(--gold-soft);
-  color: #33201a;
+  background: var(--cream-deep);
+  color: var(--text);
+  border-color: var(--gold);
 }
 .calendar-day.edge {
   background: var(--burgundy);
-  color: white;
+  color: var(--cream-card);
   font-weight: 700;
 }
 .calendar-day:disabled {
