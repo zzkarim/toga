@@ -118,6 +118,12 @@ test("admin auth events are minimal, uniquely keyed, and fail-soft for every pro
       key,
       event === "signup" ? "admin-signup-user-test" : "admin-login-event-one",
     );
+    assert.equal(
+      await notifyAdminOfAuthEvent(details, async () => ({
+        deliveryStatus: "Delivered",
+      })),
+      true,
+    );
     for (const deliveryStatus of ["Failed", "Unknown", "Retry", "Bounced"])
       assert.equal(
         await notifyAdminOfAuthEvent(details, async () => ({ deliveryStatus })),
