@@ -4,27 +4,25 @@ import { dateRange, transition } from "../lib/rules.mjs";
 test("only the lender can accept or decline a pending request", () => {
   assert.deepEqual(transition("Pending", "accept", "lender"), {
     requestStatus: "Confirmed",
-    listingStatus: "Requested",
   });
   assert.throws(() => transition("Pending", "accept", "renter"));
   assert.throws(() => transition("Completed", "accept", "lender"));
 });
 test("pickup and return are renter-only and restore availability", () => {
   assert.equal(
-    transition("Confirmed", "pickup", "renter").listingStatus,
-    "Rented Out",
+    transition("Confirmed", "pickup", "renter").requestStatus,
+    "Active Rental",
   );
   assert.deepEqual(transition("Active Rental", "return", "renter"), {
     requestStatus: "Completed",
-    listingStatus: "Active",
   });
   assert.throws(() => transition("Active Rental", "return", "lender"));
   assert.throws(() => transition("Pending", "return", "renter"));
 });
 test("decline reopens a listing", () =>
   assert.equal(
-    transition("Pending", "decline", "lender").listingStatus,
-    "Active",
+    transition("Pending", "decline", "lender").requestStatus,
+    "Declined",
   ));
 test("dates reject past, reversed, invalid, and excessive ranges", () => {
   const now = new Date("2026-09-29T12:00:00Z");

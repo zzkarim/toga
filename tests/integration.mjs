@@ -218,7 +218,7 @@ try {
       }),
     ),
   );
-  assert.deepEqual(races.map((r) => r.status).sort(), [200, 400]);
+  assert.deepEqual(races.map((r) => r.status).sort(), [200, 409]);
   let pending = await db.rentalRequest.findFirst({
     where: { listingId: listing.id, status: "Pending" },
   });

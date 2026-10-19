@@ -1,3 +1,9 @@
+import {
+  RENTABLE_LISTING_STATUSES,
+  blockingWhere,
+  unavailableRanges,
+  UNAVAILABLE_MESSAGE,
+} from "../../../lib/availability.mjs";
 import { rentalContact } from "../../../lib/rental-contact.mjs";
 import {
   requireEmailVerification,
@@ -657,7 +663,7 @@ async function handle(req, ctx) {
       where: mine
         ? { ownerId: u.id, status: { not: "Archived" } }
         : {
-            status: "Active",
+            status: { in: RENTABLE_LISTING_STATUSES },
             moderationStatus: "Visible",
             isDemo: false,
             owner: {
@@ -668,7 +674,13 @@ async function handle(req, ctx) {
               ],
             },
           },
-      include: { owner: true },
+      include: {
+        owner: true,
+        requests: {
+          where: blockingWhere(),
+          select: { startDate: true, endDate: true },
+        },
+      },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
     const ratings = await db.rating.findMany();
@@ -677,6 +689,11 @@ async function handle(req, ctx) {
         const rs = ratings.filter((r) => r.ratedUserId === l.ownerId);
         return {
           ...l,
+          status: RENTABLE_LISTING_STATUSES.includes(l.status)
+            ? "Active"
+            : l.status,
+          requests: undefined,
+          unavailableRanges: unavailableRanges(l.requests),
           photos: JSON.parse(l.photos),
           owner: publicUser(l.owner),
           rating: rs.length
@@ -686,6 +703,33 @@ async function handle(req, ctx) {
         };
       }),
     };
+  }
+  if (
+    segments[0] === "listings" &&
+    segments.length === 3 &&
+    segments[2] === "availability" &&
+    method === "GET"
+  ) {
+    const u = await requireUser();
+    const listing = await db.listing.findFirst({
+      where: {
+        id: segments[1],
+        status: { in: RENTABLE_LISTING_STATUSES },
+        moderationStatus: "Visible",
+        isDemo: false,
+        owner: { accountStatus: "Active" },
+      },
+      select: {
+        owner: { select: { email: true } },
+        requests: {
+          where: blockingWhere(),
+          select: { startDate: true, endDate: true },
+        },
+      },
+    });
+    if (!u || !listing || !isAllowedEmail(listing.owner.email))
+      fail("Listing not found.", 404);
+    return { unavailableRanges: unavailableRanges(listing.requests) };
   }
   if (route === "listings" && method === "POST") {
     const u = await requireProfile();
@@ -704,18 +748,22 @@ async function handle(req, ctx) {
     const u = await requireUser(),
       l = await db.listing.findUnique({ where: { id: segments[1] } });
     if (!l || l.ownerId !== u.id) fail("Listing not found.", 404);
-    if (!["Active", "Draft"].includes(l.status))
-      fail("Finish the current rental before editing this listing.");
     const changes =
       method === "DELETE"
         ? { status: "Archived" }
         : await listingData(body, u.id);
-    const updated = await db.listing.updateMany({
-      where: { id: l.id, ownerId: u.id, status: { in: ["Active", "Draft"] } },
-      data: changes,
+    await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "toga"."Listing" WHERE id = ${l.id} FOR UPDATE`;
+      const current = await tx.listing.findUnique({ where: { id: l.id } });
+      if (
+        ![...RENTABLE_LISTING_STATUSES, "Draft"].includes(current.status) ||
+        (await tx.rentalRequest.count({
+          where: { listingId: l.id, ...blockingWhere() },
+        }))
+      )
+        fail("Finish or resolve existing rentals before editing this listing.");
+      await tx.listing.update({ where: { id: l.id }, data: changes });
     });
-    if (!updated.count)
-      fail("This piece was just requested. Finish the rental before editing.");
     return { ok: true };
   }
   if (route === "requests" && method === "POST") {
@@ -731,13 +779,14 @@ async function handle(req, ctx) {
     }
     let createdRental;
     const notification = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "toga"."Listing" WHERE id = ${body.listingId} FOR UPDATE`;
       const l = await tx.listing.findUnique({
         where: { id: body.listingId },
         include: { owner: true },
       });
       if (
         !l ||
-        l.status !== "Active" ||
+        !RENTABLE_LISTING_STATUSES.includes(l.status) ||
         l.isDemo ||
         l.moderationStatus !== "Visible" ||
         l.owner.accountStatus !== "Active" ||
@@ -749,17 +798,16 @@ async function handle(req, ctx) {
         fail(
           "The replacement value changed. Reopen the listing and review it before requesting.",
         );
-      const reserved = await tx.listing.updateMany({
+      const conflict = await tx.rentalRequest.findFirst({
         where: {
-          id: l.id,
-          status: "Active",
-          moderationStatus: "Visible",
-          retailValue: l.retailValue,
-          price: l.price,
+          listingId: l.id,
+          ...blockingWhere(),
+          startDate: { lte: dates.endDate },
+          endDate: { gte: dates.startDate },
         },
-        data: { status: "Requested" },
+        select: { id: true },
       });
-      if (!reserved.count) fail("Someone else just requested this item.");
+      if (conflict) fail(UNAVAILABLE_MESSAGE, 409);
       const rental = await tx.rentalRequest.create({
         data: {
           listingId: l.id,
@@ -789,6 +837,8 @@ async function handle(req, ctx) {
             kind: "request",
             name: u.name,
             title: l.title,
+            startDate: dates.startDate,
+            endDate: dates.endDate,
           }),
         },
       });
@@ -988,10 +1038,6 @@ async function handle(req, ctx) {
         data: { status: next.requestStatus },
       });
       if (!changed.count) fail("This rental changed. Refresh and try again.");
-      await tx.listing.update({
-        where: { id: r.listingId },
-        data: { status: next.listingStatus },
-      });
       await recordRentalActivity(tx, {
         requestId: r.id,
         userId: u.id === r.lenderId ? r.renterId : r.lenderId,
@@ -1014,6 +1060,8 @@ async function handle(req, ctx) {
             ...notificationMail({
               kind: "status",
               title: r.listing.title,
+              startDate: r.startDate,
+              endDate: r.endDate,
               status: next.requestStatus,
               name: counterpart?.name,
               recipientRole: recipient.id === r.renterId ? "renter" : "lender",
@@ -1029,6 +1077,8 @@ async function handle(req, ctx) {
               ...notificationMail({
                 kind: "status",
                 title: r.listing.title,
+                startDate: r.startDate,
+                endDate: r.endDate,
                 status: next.requestStatus,
                 name: recipient.name,
                 recipientRole: "lender",

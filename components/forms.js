@@ -4,9 +4,11 @@ import {
   renterAcknowledgement,
   TERMS_VERSION,
 } from "../lib/legal.mjs";
+import RentalCalendar from "./rental-calendar";
+import { rangeAvailable } from "../lib/availability.mjs";
 import { useState } from "react";
 import { Field, PhotoUpload, money } from "./ui";
-import { categories, campusToday } from "../lib/rules.mjs";
+import { categories } from "../lib/rules.mjs";
 import { rentalTotal } from "../lib/browse.mjs";
 import SizeInput from "./size-input";
 import { sizeFields, sizeValue } from "../lib/sizing.mjs";
@@ -324,14 +326,22 @@ export function ProfileForm({ user, onSubmit, onLogout, busy, onUpload }) {
   );
 }
 export function RentalDates({ listing, onSubmit, busy, own }) {
-  const [start, setStart] = useState(""),
-    [end, setEnd] = useState("");
+  const [selection, setSelection] = useState({
+    start: "",
+    end: "",
+    choosingEnd: false,
+  });
+  const [ranges, setRanges] = useState(listing.unavailableRanges || []);
+  const [availabilityReady, setAvailabilityReady] = useState(false);
+  const { start, end } = selection;
+  const available = availabilityReady && rangeAvailable(start, end, ranges);
   const [acknowledged, setAcknowledged] = useState(false);
   const quote = rentalTotal(listing.price, start, end);
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
+        if (!available || !quote) return;
         onSubmit({
           listingId: listing.id,
           startDate: start,
@@ -342,35 +352,14 @@ export function RentalDates({ listing, onSubmit, busy, own }) {
         });
       }}
     >
-      <div className="two-col">
-        <Field label="Pick up">
-          {(id) => (
-            <input
-              id={id}
-              type="date"
-              min={campusToday()}
-              required
-              value={start}
-              onChange={(e) => {
-                setStart(e.target.value);
-                if (end < e.target.value) setEnd(e.target.value);
-              }}
-            />
-          )}
-        </Field>
-        <Field label="Return">
-          {(id) => (
-            <input
-              id={id}
-              type="date"
-              required
-              min={start || campusToday()}
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-            />
-          )}
-        </Field>
-      </div>
+      <RentalCalendar
+        listingId={listing.id}
+        selection={selection}
+        onChange={setSelection}
+        ranges={ranges}
+        onRanges={setRanges}
+        onReady={setAvailabilityReady}
+      />
       {quote && (
         <div className="rental-quote">
           <span>
@@ -390,7 +379,7 @@ export function RentalDates({ listing, onSubmit, busy, own }) {
         <span>{renterAcknowledgement(listing.retailValue)}</span>
       </label>
       <button
-        disabled={busy || own || !quote || !acknowledged}
+        disabled={busy || own || !quote || !acknowledged || !available}
         className="button burgundy full"
       >
         {own ? "This is your listing" : busy ? "Sending…" : "Request rental"}
