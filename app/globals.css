@@ -2064,3 +2064,42 @@ footer > button:last-child {
 .otp-help {
   font-size: 12px;
 }
+
+/* Compact, category-independent sizing and required profile completion. */
+.size-picker {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 0 0 20px;
+  min-width: 0;
+}
+.size-picker legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+.size-picker .field:last-child {
+  margin-bottom: 0;
+}
+.pants-inputs {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.pants-inputs .field {
+  min-width: 0;
+}
+.complete-profile {
+  width: calc(100% - 32px);
+  max-width: 480px;
+  margin: 48px auto;
+  padding: 24px;
+}
+.complete-profile h1 {
+  font-size: clamp(1.8rem, 7vw, 2.4rem);
+  line-height: 1.15;
+}
+.complete-profile > p {
+  margin: 16px 0 24px;
+}
+.complete-profile .text-button {
+  display: block;
+  margin: 20px auto 0;
+}

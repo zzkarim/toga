@@ -1,4 +1,5 @@
 "use client";
+import { adminUserName } from "../lib/profile.mjs";
 import { useState } from "react";
 import { api, Modal, Field, money } from "./ui";
 const labels = {
@@ -102,7 +103,7 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
         {rows.map((row) => (
           <article className="panel moderation-record" key={row.id}>
             <h2>
-              {row.name ||
+              {(tab === "users" ? adminUserName(row) : row.name) ||
                 row.title ||
                 row.subject ||
                 (tab === "requests" ? listings[row.listingId]?.title : null) ||

@@ -41,7 +41,12 @@ import {
   normalizeEmail,
   safeDestination,
 } from "../../../lib/campus.mjs";
-import { sizes } from "../../../lib/browse.mjs";
+import { listingSize } from "../../../lib/sizing.mjs";
+import {
+  normalizePhone,
+  needsProfile,
+  afterAuthentication,
+} from "../../../lib/profile.mjs";
 import { hash, fail, limit } from "../../../lib/security";
 import { ownPhotos, savePhoto, readPhoto } from "../../../lib/uploads";
 import { listingTags, dateRange, transition } from "../../../lib/rules.mjs";
@@ -119,7 +124,7 @@ async function requireUser() {
 }
 async function requireProfile() {
   const u = await requireUser();
-  if (!u.name || !u.phone) fail("Complete your profile before continuing.");
+  if (needsProfile(u)) fail("Complete your profile before continuing.");
   return u;
 }
 async function ownedRequest(id, u) {
@@ -136,7 +141,13 @@ async function listingData(body, userId) {
     fail(
       "Confirm ownership, condition, and the prohibited-items policy before publishing.",
     );
-  const { title, description, size, condition, photos } = body;
+  const { title, description, condition, photos } = body;
+  let size;
+  try {
+    size = listingSize(body.size);
+  } catch (error) {
+    fail(error.message);
+  }
   let tags;
   try {
     tags = listingTags(body);
@@ -152,8 +163,8 @@ async function listingData(body, userId) {
     description.length > 3000
   )
     fail("Add a title and a short description.");
-  if (!["New", "Like New", "Good"].includes(condition) || !sizes.includes(size))
-    fail("Choose a condition and size.");
+  if (!["New", "Like New", "Good"].includes(condition))
+    fail("Choose a condition.");
   const price = Number(body.price);
   let retailValue;
   try {
@@ -321,11 +332,7 @@ async function handle(req, ctx) {
     authLog("verification_succeeded");
     return {
       ok: true,
-      next: needsAcceptance(result.user)
-        ? "/accept-terms"
-        : result.user.name && result.user.phone
-          ? safeDestination(body.next)
-          : "/?view=profile",
+      next: afterAuthentication(result.user, body.next),
     };
   }
   if (route === "auth/password-login" && method === "POST") {
@@ -342,11 +349,7 @@ async function handle(req, ctx) {
     await createSession(user);
     return {
       ok: true,
-      next: needsAcceptance(user)
-        ? "/accept-terms"
-        : user.name && user.phone
-          ? safeDestination(body.next)
-          : "/?view=profile",
+      next: afterAuthentication(user, body.next),
     };
   }
   if (route === "auth/password" && method === "POST") {
@@ -451,11 +454,7 @@ async function handle(req, ctx) {
     await createSession(user, true);
     return {
       ok: true,
-      next: needsAcceptance(user)
-        ? "/accept-terms"
-        : user.phone && user.name
-          ? safeDestination(body.next)
-          : "/?view=profile",
+      next: afterAuthentication(user, body.next),
     };
   }
   if (route === "auth/logout" && method === "POST") {
@@ -497,6 +496,7 @@ async function handle(req, ctx) {
       user: {
         ...user,
         needsTermsAcceptance: needsAcceptance(user),
+        needsProfileCompletion: needsProfile(user),
         hasPassword: Boolean(user.passwordHash),
         rating: stats._avg.score,
         ratingCount: stats._count.score,
@@ -506,17 +506,21 @@ async function handle(req, ctx) {
   if (route === "me" && method === "PATCH") {
     const u = await requireUser();
     const name = String(body.name || "").trim(),
-      phone = String(body.phone || "").trim(),
-      classYear = body.classYear ? Number(body.classYear) : null;
+      phone = normalizePhone(body.phone),
+      classYear =
+        body.classYear === undefined
+          ? undefined
+          : body.classYear
+            ? Number(body.classYear)
+            : null;
     if (
       name.length < 2 ||
       name.length > 80 ||
-      !/^\+?[\d\s().-]{7,25}$/.test(phone) ||
-      phone.replace(/\D/g, "").length < 7 ||
-      (classYear !== null &&
+      !phone ||
+      (classYear != null &&
         (!Number.isInteger(classYear) || classYear < 2020 || classYear > 2040))
     )
-      fail("Enter your name and a valid phone number.");
+      fail("Enter your name and a valid phone number, such as (404) 555-1234.");
     if (body.venmoHandle !== undefined && body.paymentInfo === undefined)
       fail("Please refresh Toga before updating your profile.");
     let paymentInfo;
@@ -537,7 +541,10 @@ async function handle(req, ctx) {
           phone,
           classYear,
           paymentInfo,
-          profilePhotoUrl: body.profilePhotoUrl || null,
+          profilePhotoUrl:
+            body.profilePhotoUrl === undefined
+              ? undefined
+              : body.profilePhotoUrl || null,
         },
       }),
     };

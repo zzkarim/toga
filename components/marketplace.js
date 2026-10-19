@@ -1,4 +1,5 @@
 "use client";
+import { needsProfile, displayPhone } from "../lib/profile.mjs";
 import AdminDashboard from "./admin-dashboard";
 import SeasonalDecor from "./seasonal-decor";
 import { needsAcceptance, TERMS_VERSION } from "../lib/legal.mjs";
@@ -62,6 +63,10 @@ export default function Home() {
     const { user: me } = await api("me");
     if (me?.needsTermsAcceptance) {
       window.location.replace("/accept-terms");
+      return;
+    }
+    if (needsProfile(me)) {
+      window.location.replace("/complete-profile");
       return;
     }
     setUser(me);
@@ -746,7 +751,8 @@ export default function Home() {
                           <div className="contact-details">
                             {r.partner.phone && (
                               <a href={`tel:${r.partner.phone}`}>
-                                {r.partner.name} · {r.partner.phone}
+                                {r.partner.name} ·{" "}
+                                {displayPhone(r.partner.phone)}
                               </a>
                             )}
                             <small>
@@ -967,6 +973,12 @@ export default function Home() {
             <AuthForm
               onBusy={setBusy}
               onSuccess={async (data) => {
+                if (
+                  ["/complete-profile", "/accept-terms"].includes(data.next)
+                ) {
+                  window.location.replace(data.next);
+                  return;
+                }
                 await refresh();
                 setModal(null);
                 navigate(
@@ -1067,6 +1079,12 @@ export default function Home() {
                       token,
                       next: destination,
                     });
+                    if (
+                      ["/complete-profile", "/accept-terms"].includes(data.next)
+                    ) {
+                      window.location.replace(data.next);
+                      return;
+                    }
                     setToken("");
                     setPassword("");
                     setCurrentPassword("");

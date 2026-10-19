@@ -7,7 +7,10 @@ import {
 import { useState } from "react";
 import { Field, PhotoUpload, money } from "./ui";
 import { categories, campusToday } from "../lib/rules.mjs";
-import { sizes, rentalTotal } from "../lib/browse.mjs";
+import { rentalTotal } from "../lib/browse.mjs";
+import SizeInput from "./size-input";
+import { sizeFields, sizeValue } from "../lib/sizing.mjs";
+import { displayPhone } from "../lib/profile.mjs";
 export function ListingForm({ item, onSubmit, busy, onUpload }) {
   const [form, setForm] = useState(
     item || {
@@ -21,6 +24,8 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
       photos: [],
     },
   );
+  const [sizing, setSizing] = useState(() => sizeFields(item?.size || "M"));
+  const [sizeError, setSizeError] = useState("");
   const [lenderConfirmed, setLenderConfirmed] = useState(false);
   const [uploading, setUploading] = useState(false);
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
@@ -28,8 +33,14 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (!uploading && lenderConfirmed)
-          onSubmit({ ...form, lenderConfirmed });
+        if (!uploading && lenderConfirmed) {
+          try {
+            setSizeError("");
+            onSubmit({ ...form, size: sizeValue(sizing), lenderConfirmed });
+          } catch (error) {
+            setSizeError(error.message);
+          }
+        }
       }}
     >
       <div className="field">
@@ -79,19 +90,6 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
             ))}
           </div>
         </fieldset>
-        <Field label="Size">
-          {(id) => (
-            <select
-              id={id}
-              value={form.size}
-              onChange={(e) => set("size", e.target.value)}
-            >
-              {sizes.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          )}
-        </Field>
         <Field label="Price per day ($)">
           {(id) => (
             <input
@@ -122,6 +120,12 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
           )}
         </Field>
       </div>
+      <SizeInput fields={sizing} onChange={setSizing} />
+      {sizeError && (
+        <p className="error" role="alert">
+          {sizeError}
+        </p>
+      )}
       <Field label="Short description">
         {(id) => (
           <textarea
@@ -186,7 +190,10 @@ export function ListingForm({ item, onSubmit, busy, onUpload }) {
   );
 }
 export function ProfileForm({ user, onSubmit, onLogout, busy, onUpload }) {
-  const [form, setForm] = useState(user);
+  const [form, setForm] = useState({
+    ...user,
+    phone: displayPhone(user.phone),
+  });
   const [uploading, setUploading] = useState(false);
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
   return (
@@ -232,6 +239,9 @@ export function ProfileForm({ user, onSubmit, onLogout, busy, onUpload }) {
               autoComplete="tel"
               required
               value={form.phone}
+              maxLength={30}
+              placeholder="(404) 555-1234"
+              onBlur={() => set("phone", displayPhone(form.phone))}
               onChange={(e) => set("phone", e.target.value)}
             />
           )}

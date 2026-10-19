@@ -113,7 +113,7 @@ Vercel logs under `service=toga-auth` distinguish verification request/success/f
 
 Migration `20261014000000_email_otp` adds `EmailOtp` and `Session.passwordSetupUntil`, backfilling existing recovery-session expiry. It preserves users, passwords, sessions and rental data. Apply with `node --env-file=.env.production.local node_modules/prisma/build/index.js migrate deploy` before deploying the new app.
 
-Local checks: `npm test`, `node --env-file=.env tests/otp-integration.mjs`, `node --env-file=.env tests/password-integration.mjs`, and the existing rental integration suite. The OTP integration scripts default to port 3003, with real email disabled. Next.js production build performs the configured validity checks; this JavaScript repository has no separate ESLint or TypeScript configuration.
+Local checks: `npm test`, `node --env-file=.env tests/otp-integration.mjs`, `node --env-file=.env tests/password-integration.mjs`, and the existing rental integration suite. The OTP integration scripts default to port 3003, with real email disabled. Next.js production build performs the configured validity checks; run `npm run lint` separately; this JavaScript repository has no separate TypeScript check.
 
 Real student verification:
 1. Open the canonical production URL in a normal browser and choose Sign up / log in.
@@ -122,3 +122,14 @@ Real student verification:
 4. Refresh, open another tab, then close/reopen the browser. The account should remain signed in without another email.
 5. Log out and repeat. Verify a wrong code fails, an expired code fails after 10 minutes, and a resent code invalidates the previous code. Five incorrect attempts require a new code.
 6. Check existing password login, admin exception, and a rental walkthrough. Never use unrelated students' addresses for tests.
+
+
+## Profile completion and flexible sizes (October 18, 2026)
+
+After authentication and the existing legal acknowledgement, new and incomplete accounts go to `/complete-profile`. Only name and phone are required. Existing complete profiles bypass it; sessions remain valid. US numbers are normalized to E.164 when saved and displayed in familiar formatting. Explicit international country codes are also accepted. Minimal profile saves preserve omitted optional fields. Phone visibility remains limited to confirmed rental partners. Listing creation and rental requests enforce profile completeness on the server.
+
+Listings use the existing `size` text column. Standard (XXS–XXL and One size), Pants (waist/inseam in inches), Numeric, Shoes, and Custom show only relevant inputs. Pants display as `W32 × L30`; old text sizes are preserved. Size controls are independent of category tags. Browse keeps its simple standard-size filter. No schema migration or bulk profile/size rewrite is required.
+
+Run `tests/onboarding-sizing-integration.mjs` alongside the six existing local integration suites, with `TEST_URL` and `APP_URL` matching the local server. It exercises OTP onboarding, existing-session redirects, required fields, optional-field preservation, API enforcement, and size creation/editing.
+
+Resend cutover was deliberately stopped: the connected account has no sending domains. Its default test domain can only deliver to the account owner's address ([official restriction](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain)). Gmail remains the sole active provider; no API key or production email configuration was changed. To enable Resend, first supply a domain under your control, verify its sending DNS, then add a sending-only API key in secure environment configuration and test GT verification, user notifications, and admin copies before switching the provider boundary. Preserve deterministic outbox IDs and avoid dual sends. [Next.js integration](https://resend.com/docs/send-with-nextjs), [API key permissions](https://resend.com/docs/dashboard/api-keys/introduction), [limits](https://resend.com/docs/api-reference/rate-limit), and [webhooks](https://resend.com/docs/webhooks/introduction) were reviewed. Webhook delivery/bounce tracking can follow a verified-domain cutover; it does not establish inbox placement.
