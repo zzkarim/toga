@@ -4,13 +4,13 @@
 
 Peer-to-peer clothing rentals for college students. This launch is restricted to **Georgia Tech (`@gatech.edu`)**, with an explicit founder login exception for `jointoga@gmail.com`.
 
-Next.js 15 / React 19, Prisma 6, Supabase Postgres, private Supabase Storage, and password login with Gmail SMTP email verification/recovery. Hosting target: Vercel with its default HTTPS project URL. No in-app payments.
+Next.js 15 / React 19, Prisma 6, Supabase Postgres, private Supabase Storage, and password signup/login with optional Gmail SMTP ownership verification/recovery. Hosting target: Vercel with its default HTTPS project URL. No in-app payments.
 
 ## Launch status
 
 Production URL: **https://toga-ecru.vercel.app**. Vercel is connected to Supabase Postgres and private Storage; production migrations are applied. Hosted routing, database sessions, image upload/download and authorization, domain rejection, and the scheduled job's HTTP response passed verification. The original SendGrid rollout accepted the admin magic-link test, and the live mobile login form accepts the exact admin exception.
 
-**Not yet cleared for the waitlist:** confirm actual inbox delivery and complete the hosted two-account rental walkthrough with a controlled Georgia Tech inbox. Remove verification records and photo objects afterward and rerun the empty-database check. The database was confirmed empty before verification; temporary login/email records remain during testing. See [deployment instructions](deploy/README.md).
+**Limited pilot:** production contains real student data. Never reset or empty it. Password signup can operate independently of Gmail with `REQUIRE_EMAIL_VERIFICATION=false`; email ownership is then domain-validated only, not verified. Transactional email is best-effort and may bounce. Check the live config and release before operating on production.
 
 The supplied original logo is stored unchanged in `public/logo.png` and used in the header, landing page, and browser/touch icons. Visible product naming is **Toga**, without a trailing period.
 
@@ -97,11 +97,17 @@ The job endpoint is `POST /api/jobs`, protected by `Authorization: Bearer <CRON_
 
 ## Signing in
 
-The default is a six-digit email code: request, enter or paste it, and stay in Toga. Codes expire in 10 minutes, allow five wrong attempts, and can be resent after 60 seconds (five requests per email per 15 minutes). A resend replaces the previous code. Password login and old, already-issued magic links remain compatible. The exact founder exception is `jointoga@gmail.com`; other accounts require `@gatech.edu`.
+Production pilot configuration is `REQUIRE_EMAIL_VERIFICATION=false`: new users enter Georgia Tech email, password, and confirmation, accept the existing legal acknowledgment, then complete required name and phone. Payment information is optional. Existing users log in with email/password. New signup never queues a verification email. The exact founder exception remains `jointoga@gmail.com`; all other addresses must match `@gatech.edu` after normalization. Passwords use the existing salted scrypt implementation (12–128 characters), and duplicate addresses never replace existing credentials.
+
+The flag defaults to `true` if omitted; production build validation requires an explicit `true` or `false`. Set it to `true` and redeploy to restore the normal email-code signup UI and block password-only account creation. Existing password login remains available in either mode. No database migration is required; the schema has no email-verification boolean, and pilot signup does not claim verified ownership or add a verified-student badge.
+
+**Legacy transition:** in pilot mode, an already-authenticated active account with no password can establish its first password in Account, even after its original short recovery window expires. A banner prompts this before sign-out. This exception never replaces an existing password. Existing password changes still need the current password or a fresh verified recovery session. Setting/changing a password deliberately revokes older sessions; deployment itself does not.
+
+**Recovery limitation:** signed-out legacy users and users who forgot their password may explicitly try the existing ownership-verifying email recovery flow, but Gmail delivery is unreliable. They can contact `jointoga@gmail.com` for administrator assistance proving ownership. Do not grant access or reset credentials merely because someone knows an email/name/phone. Do not email passwords. Users with an active session should set their password before signing out. There is no insecure email-only reset bypass. In pilot mode recovery sends are restricted to existing accounts.
 
 Authentication is custom Next.js/Prisma code, not Supabase Auth. Sessions use random 256-bit tokens, hashed server-side, with HttpOnly/SameSite=Lax/Secure production cookies. Cookies and database sessions last 30 days and renew at most daily on activity. Logging out, deleting cookies, private browsing, switching browsers, or 30 days of inactivity requires another login. Password-reset authority expires separately after 15 minutes and is never extended by session renewal.
 
-OTP digests use HMAC-SHA256 with the existing `CRON_SECRET` and a separate purpose prefix, bound to email and challenge. No new environment variables are required; keep the existing random secret stable and at least 32 characters. Rotating it invalidates outstanding codes. Codes and authentication email bodies are not stored in email history or logged. Development-only `previewCode` responses require non-production mode plus `DEV_EMAIL_PREVIEW=true`; production must keep it false.
+OTP digests use HMAC-SHA256 with the existing `CRON_SECRET` and a separate purpose prefix, bound to email and challenge. Keep the existing random secret stable and at least 32 characters. Rotating it invalidates outstanding codes. Codes and authentication email bodies are not stored in email history or logged. Development-only `previewCode` responses require non-production mode plus `DEV_EMAIL_PREVIEW=true`; production must keep it false.
 
 ### Email delivery and diagnosis
 
@@ -115,7 +121,7 @@ Migration `20261014000000_email_otp` adds `EmailOtp` and `Session.passwordSetupU
 
 Local checks: `npm test`, `node --env-file=.env tests/otp-integration.mjs`, `node --env-file=.env tests/password-integration.mjs`, and the existing rental integration suite. The OTP integration scripts default to port 3003, with real email disabled. Next.js production build performs the configured validity checks; run `npm run lint` separately; this JavaScript repository has no separate TypeScript check.
 
-Real student verification:
+Optional email-code/recovery checks (`REQUIRE_EMAIL_VERIFICATION=true` for new-account code signup):
 1. Open the canonical production URL in a normal browser and choose Sign up / log in.
 2. Enter a controlled `@gatech.edu` address and choose Send code. Confirm the code screen opens and resend is disabled for 60 seconds.
 3. Find the email (including Junk/Spam). Paste all six digits or type them individually; press Enter. No email link or browser switch is needed.
@@ -138,3 +144,9 @@ Resend cutover was deliberately stopped: the connected account has no sending do
 Custom category text is stored in nullable `Listing.customCategory` alongside the existing `Custom` marker in `categories`. Migration `20261019000000_custom_category` only adds that nullable text column; it rewrites no records. Selecting Custom requires 1–40 trimmed characters; deselecting it clears the value. Existing marker-only listings remain readable. Display uses the custom text, while Browse retains only its fixed standard filters. Custom sizing continues to use `Listing.size` without new metadata.
 
 All six Admin queries use creation time descending, then ID descending. Email queue time is `Email.createdAt`; existing email deduplication and query limits remain. Users, listings, requests, and reports now expose small recency timestamps. `tests/admin-recency-integration.mjs` verifies actual API query ordering with deliberately reverse-inserted fixtures; run it alongside the seven existing integration suites.
+
+## Temporary password pilot validation
+
+Run the nine existing integration suites with `REQUIRE_EMAIL_VERIFICATION=true`, then restart the local email-disabled server with `REQUIRE_EMAIL_VERIFICATION=false` and run `tests/pilot-auth-integration.mjs`. Unit tests mock Gmail outcomes; automated tests must never load live Gmail credentials. The pilot suite covers domain/duplicate validation, password hashing, no signup verification message, legal/profile gates, optional payment, explicit-login monitoring, no refresh/session-check monitoring, legacy first-password setup, recovery restrictions, and notification priority under an admin backlog.
+
+Signup and explicit login each schedule one logical admin monitoring message after the successful response using Next.js `after`. Signup uses a deterministic user-based ID; login uses a unique event ID unrelated to session credentials. Refresh and session renewal emit none. Existing marketplace admin IDs remain deterministic per event/rental or report. User SMTP delivery runs after the core response and before its admin copy. The bounded retry queue processes user notifications, reminders, admin marketplace copies, then auth monitoring; Gmail failures never roll back a committed action. Bounces and Unknown/Failed diagnostics remain available in Admin. Admin rental rows expose existing participant name/email/phone and lender payment instructions only to administrators.

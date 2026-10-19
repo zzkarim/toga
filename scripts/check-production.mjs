@@ -3,6 +3,8 @@ try {
   process.loadEnvFile(".env.production.local");
 } catch {}
 const problems = [];
+if (!["true", "false"].includes(process.env.REQUIRE_EMAIL_VERIFICATION))
+  problems.push("REQUIRE_EMAIL_VERIFICATION must explicitly be true or false.");
 if (!["halloween", "classic"].includes(process.env.TOGA_THEME))
   problems.push("TOGA_THEME must be halloween or classic.");
 if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(process.env.EMAIL_FROM || ""))

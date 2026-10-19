@@ -1,4 +1,5 @@
 "use client";
+import PasswordAuthForm from "./password-auth-form";
 import { CONTACT_EMAIL } from "../lib/contact.mjs";
 import SeasonalDecor from "./seasonal-decor";
 import { useEffect, useRef, useState } from "react";
@@ -9,7 +10,46 @@ import {
   normalizeEmail,
 } from "../lib/campus.mjs";
 const storageKey = "toga-pending-verification";
-export default function AuthForm({ onSuccess, onBusy }) {
+export default function AuthForm({
+  onSuccess,
+  onBusy,
+  requireEmailVerification = true,
+}) {
+  const [recovery, setRecovery] = useState(false),
+    [recoveryBusy, setRecoveryBusy] = useState(false);
+  const reportBusy = (value) => {
+    setRecoveryBusy(value);
+    onBusy(value);
+  };
+  if (requireEmailVerification)
+    return <VerifiedAuthForm onSuccess={onSuccess} onBusy={onBusy} />;
+  if (recovery)
+    return (
+      <>
+        <button
+          type="button"
+          className="text-button"
+          disabled={recoveryBusy}
+          onClick={() => setRecovery(false)}
+        >
+          Back to email and password
+        </button>
+        <VerifiedAuthForm
+          onSuccess={onSuccess}
+          onBusy={reportBusy}
+          recoveryOnly
+        />
+      </>
+    );
+  return (
+    <PasswordAuthForm
+      onSuccess={onSuccess}
+      onBusy={onBusy}
+      onRecovery={() => setRecovery(true)}
+    />
+  );
+}
+function VerifiedAuthForm({ onSuccess, onBusy, recoveryOnly = false }) {
   const [email, setEmail] = useState(""),
     [mode, setMode] = useState("code"),
     [password, setPassword] = useState("");
@@ -280,7 +320,9 @@ export default function AuthForm({ onSuccess, onBusy }) {
       <SeasonalDecor variant="auth" />
       <p>
         {mode === "code"
-          ? "Sign up or log in with a six-digit email code. You’ll stay signed in on this browser."
+          ? recoveryOnly
+            ? "Email recovery is for existing accounts. Delivery is currently unreliable. If you cannot receive a code, contact jointoga@gmail.com for help proving account ownership."
+            : "Sign up or log in with a six-digit email code. You’ll stay signed in on this browser."
           : "Use your existing Toga password."}
       </p>
       <Field label="Email address">

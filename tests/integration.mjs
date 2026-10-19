@@ -103,6 +103,10 @@ async function jobs() {
   });
 }
 async function assertAdminEvent(event, id) {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    if (await db.email.count({ where: { id: `admin-${event}-${id}` } })) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   assert.equal(
     await db.email.count({ where: { id: `admin-${event}-${id}` } }),
     1,

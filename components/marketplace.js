@@ -28,7 +28,7 @@ const date = (value) =>
     day: "numeric",
     timeZone: "UTC",
   });
-export default function Home() {
+export default function Home({ requireEmailVerification = true }) {
   const [user, setUser] = useState(null),
     [view, setView] = useState("browse"),
     [listings, setListings] = useState([]),
@@ -354,6 +354,18 @@ export default function Home() {
                 : "dashboard"
           }
         >
+          {!user.hasPassword && (
+            <p className="notice" role="status">
+              Set a password before signing out.{" "}
+              <button
+                className="text-button"
+                onClick={() => navigate("profile")}
+              >
+                Go to Account
+              </button>
+            </p>
+          )}
+
           {error && !modal && (
             <p className="error" role="alert">
               {error}
@@ -547,6 +559,12 @@ export default function Home() {
               </div>
               {view === "profile" && (
                 <>
+                  {!user.hasPassword && (
+                    <p role="status">
+                      Set a password before signing out so you can return
+                      without relying on email delivery.
+                    </p>
+                  )}
                   <button
                     className="button outline"
                     onClick={() => {
@@ -971,6 +989,7 @@ export default function Home() {
           )}
           {modal === "login" && (
             <AuthForm
+              requireEmailVerification={requireEmailVerification}
               onBusy={setBusy}
               onSuccess={async (data) => {
                 if (
@@ -1005,7 +1024,7 @@ export default function Home() {
                   await refresh();
                   setModal(null);
                   setToast(
-                    "Password saved. Next time, log in without an email link.",
+                    "Password saved. Next time, log in with your email and password.",
                   );
                 } catch (e) {
                   setError(e.message);
@@ -1019,7 +1038,7 @@ export default function Home() {
                 your password. Other sessions will be signed out.
               </p>
               {user?.hasPassword && (
-                <Field label="Current password (not needed after email verification)">
+                <Field label="Current password (unless you just completed account recovery)">
                   {(id) => (
                     <input
                       id={id}

@@ -280,6 +280,27 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
                     {who(row.lenderId)}
                   </button>
                 </p>
+                <p>
+                  Listing: {listings[row.listingId]?.title || row.listingId}
+                </p>
+                <p>
+                  Renter email: {users[row.renterId]?.email || "Not provided"}
+                  <br />
+                  Renter phone: {users[row.renterId]?.phone || "Not provided"}
+                </p>
+                <p>
+                  Lender email: {users[row.lenderId]?.email || "Not provided"}
+                  <br />
+                  Lender phone: {users[row.lenderId]?.phone || "Not provided"}
+                </p>
+                {users[row.lenderId]?.paymentInfo && (
+                  <p
+                    style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+                  >
+                    Lender payment information:{" "}
+                    {users[row.lenderId].paymentInfo}
+                  </p>
+                )}
                 <button
                   className="text-button"
                   onClick={() => inspect("listings", row.listingId)}

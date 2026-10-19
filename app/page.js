@@ -1,3 +1,4 @@
+import { requireEmailVerification } from "../lib/auth-policy.mjs";
 import { redirect } from "next/navigation";
 import Marketplace from "../components/marketplace";
 import { pageUser } from "../lib/page-session";
@@ -7,5 +8,5 @@ export default async function Home() {
   const user = await pageUser();
   if (needsAcceptance(user)) redirect("/accept-terms");
   if (needsProfile(user)) redirect("/complete-profile");
-  return <Marketplace />;
+  return <Marketplace requireEmailVerification={requireEmailVerification()} />;
 }

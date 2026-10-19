@@ -1,3 +1,5 @@
+import { requireEmailVerification } from "../../../lib/auth-policy.mjs";
+import { signupWithPassword } from "../../../lib/password-signup.js";
 import { isIP } from "node:net";
 import { requestVerification, otpEmailId } from "../../../lib/verification.js";
 import { syncGmailBounces } from "../../../lib/gmail-bounces.js";
@@ -11,7 +13,10 @@ import {
 import { notificationMail } from "../../../lib/notification-mail.mjs";
 import { emailConfigured } from "../../../lib/mail-provider.mjs";
 import { recordRentalActivity } from "../../../lib/rental-activity.mjs";
-import { notifyAdminOfMarketplaceEvent } from "../../../lib/admin-notifications.mjs";
+import {
+  notifyAdminOfMarketplaceEvent,
+  notifyAdminOfAuthEvent,
+} from "../../../lib/admin-notifications.mjs";
 import { paymentInformation } from "../../../lib/payment.mjs";
 import { authLog } from "../../../lib/auth-log.mjs";
 import { codeMatches, OTP_SUBJECT, OTP_ATTEMPTS } from "../../../lib/otp.mjs";
@@ -20,7 +25,7 @@ import {
   verifyPassword,
   validPassword,
 } from "../../../lib/passwords.mjs";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { db } from "../../../lib/db";
@@ -59,6 +64,22 @@ const publicUser = (u) =>
     classYear: u.classYear,
     profilePhotoUrl: u.profilePhotoUrl,
   };
+function clientIp(req) {
+  const ip =
+    process.env.VERCEL === "1"
+      ? req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim()
+      : null;
+  return ip && isIP(ip) ? ip : null;
+}
+function authMonitoring(user, event) {
+  const details = {
+    event,
+    user: { id: user.id, email: user.email, name: user.name },
+    occurredAt: new Date(),
+    eventId: randomBytes(16).toString("hex"),
+  };
+  after(() => notifyAdminOfAuthEvent(details));
+}
 async function createSession(user, canSetPassword = false) {
   const fresh = await db.user.findUnique({ where: { id: user.id } });
   if (!fresh || fresh.accountStatus !== "Active")
@@ -213,7 +234,11 @@ async function handle(req, ctx) {
       ? await req.json().catch(() => ({}))
       : {};
   if (route === "config" && method === "GET")
-    return { campus: CAMPUS, domain: DOMAIN };
+    return {
+      campus: CAMPUS,
+      domain: DOMAIN,
+      requireEmailVerification: requireEmailVerification(),
+    };
   if (route === "health" && method === "GET") {
     await db.$queryRaw`SELECT 1`;
     return {
@@ -222,9 +247,22 @@ async function handle(req, ctx) {
       theme: process.env.TOGA_THEME || "halloween",
     };
   }
+  if (route === "auth/signup" && method === "POST") {
+    const user = await signupWithPassword(body, { ip: clientIp(req) });
+    await createSession(user);
+    authMonitoring(user, "signup");
+    return { ok: true, next: afterAuthentication(user, body.next) };
+  }
   if (route === "auth/otp/request" && method === "POST") {
     const email = normalizeEmail(body.email);
     if (!isAllowedEmail(email)) fail(DOMAIN_ERROR);
+    if (
+      !requireEmailVerification() &&
+      !(await db.user.findUnique({ where: { email }, select: { id: true } }))
+    )
+      fail(
+        "Create an account with your email and password. Email recovery is for existing accounts only.",
+      );
     authLog("verification_requested");
     const preview =
       process.env.NODE_ENV !== "production" &&
@@ -285,12 +323,16 @@ async function handle(req, ctx) {
       await tx.emailOtp.delete({ where: { email } });
       const role =
         email === normalizeEmail(process.env.ADMIN_EMAIL) ? "admin" : "user";
+      const existing = await tx.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
       const user = await tx.user.upsert({
         where: { email },
         create: { email, role },
         update: { role },
       });
-      return { user };
+      return { user, created: !existing };
     });
     if (!result.user) {
       authLog(
@@ -308,6 +350,7 @@ async function handle(req, ctx) {
       );
     }
     await createSession(result.user, true);
+    authMonitoring(result.user, result.created ? "signup" : "login");
     authLog("verification_succeeded");
     return {
       ok: true,
@@ -317,15 +360,18 @@ async function handle(req, ctx) {
   if (route === "auth/password-login" && method === "POST") {
     const email = normalizeEmail(body.email);
     if (!isAllowedEmail(email)) fail(DOMAIN_ERROR);
+    if (clientIp(req))
+      await limit(`password-ip:${clientIp(req)}`, 60, 15 * 60000);
     await limit(`password:${email}`, 10, 15 * 60000);
     await limit("password:global", 100, 60000);
     const user = await db.user.findUnique({ where: { email } });
     if (!(await verifyPassword(body.password, user?.passwordHash)))
       fail(
-        "Email or password is incorrect. Use the email-code option if you haven’t set a password or forgot it.",
+        "Email or password is incorrect. If you haven’t set a password or forgot it, use account recovery.",
         401,
       );
     await createSession(user);
+    authMonitoring(user, "login");
     return {
       ok: true,
       next: afterAuthentication(user, body.next),
@@ -339,11 +385,12 @@ async function handle(req, ctx) {
     const sessionId = hash((await cookies()).get("toga_session").value);
     const session = await db.session.findUnique({ where: { id: sessionId } });
     if (
+      (user.passwordHash || requireEmailVerification()) &&
       !(session?.canSetPassword && session.passwordSetupUntil > new Date()) &&
       !(await verifyPassword(body.currentPassword, user.passwordHash))
     )
       fail(
-        "Enter your current password, or sign in with a fresh email code to reset it.",
+        "Enter your current password, or use account recovery. A verified recovery sign-in is required to reset a forgotten password.",
         401,
       );
     const passwordHash = await hashPassword(body.password);
@@ -364,6 +411,13 @@ async function handle(req, ctx) {
   if (route === "auth/login" && method === "POST") {
     const email = normalizeEmail(body.email);
     if (!isAllowedEmail(email)) fail(DOMAIN_ERROR);
+    if (
+      !requireEmailVerification() &&
+      !(await db.user.findUnique({ where: { email }, select: { id: true } }))
+    )
+      fail(
+        "Create an account with your email and password. Email recovery is for existing accounts only.",
+      );
     if (
       !emailConfigured() &&
       !(
@@ -408,11 +462,16 @@ async function handle(req, ctx) {
     const token = String(body.token || "");
     if (!/^[a-f0-9]{64}$/.test(token))
       fail("This sign-in link is invalid. Request a new link.");
+    let newlyCreated = false;
     const user = await db.$transaction(async (tx) => {
       const t = await tx.loginToken.findUnique({ where: { id: hash(token) } });
       if (!t || t.expiresAt < new Date() || !isAllowedEmail(t.email))
         fail("This link has expired or was used. Request a new sign-in link.");
       await tx.loginToken.delete({ where: { id: t.id } });
+      newlyCreated = !(await tx.user.findUnique({
+        where: { email: t.email },
+        select: { id: true },
+      }));
       return tx.user.upsert({
         where: { email: t.email },
         update: {
@@ -431,6 +490,7 @@ async function handle(req, ctx) {
       });
     });
     await createSession(user, true);
+    authMonitoring(user, newlyCreated ? "signup" : "login");
     return {
       ok: true,
       next: afterAuthentication(user, body.next),
@@ -683,7 +743,7 @@ async function handle(req, ctx) {
         },
       });
     });
-    const adminNotification = notifyAdminOfMarketplaceEvent({
+    const adminDetails = {
       event: "request",
       rentalId: createdRental.id,
       listingName: createdRental.listing.title,
@@ -695,8 +755,11 @@ async function handle(req, ctx) {
       endDate: createdRental.endDate,
       status: createdRental.status,
       createdAt: createdRental.createdAt,
+    };
+    after(async () => {
+      await Promise.allSettled([deliverEmail(notification)]);
+      await notifyAdminOfMarketplaceEvent(adminDetails);
     });
-    await Promise.allSettled([deliverEmail(notification), adminNotification]);
     return { ok: true };
   }
   if (route === "activity" && method === "GET") {
@@ -728,7 +791,7 @@ async function handle(req, ctx) {
   }
   if (route === "requests" && method === "GET") {
     const u = await requireUser();
-    await expireRequests();
+    await expireRequests(after);
     const requests = await db.rentalRequest.findMany({
       where: { OR: [{ renterId: u.id }, { lenderId: u.id }] },
       include: {
@@ -826,25 +889,27 @@ async function handle(req, ctx) {
       });
       const partnerId = u.id === r.renterId ? r.lenderId : r.renterId;
       const partner = await db.user.findUnique({ where: { id: partnerId } });
-      await notifyAdminOfMarketplaceEvent({
-        event: "report",
-        reportId: report.id,
-        rentalId: r.id,
-        listingName: r.listing.title,
-        renterName: u.id === r.renterId ? u.name : partner?.name,
-        renterEmail: u.id === r.renterId ? u.email : partner?.email,
-        lenderName: u.id === r.lenderId ? u.name : partner?.name,
-        lenderEmail: u.id === r.lenderId ? u.email : partner?.email,
-        reporterName: u.name,
-        reporterEmail: u.email,
-        otherName: partner?.name,
-        otherEmail: partner?.email,
-        reportCategory: "Rental problem",
-        startDate: r.startDate,
-        endDate: r.endDate,
-        createdAt: report.createdAt,
-        description: report.description,
-      });
+      after(() =>
+        notifyAdminOfMarketplaceEvent({
+          event: "report",
+          reportId: report.id,
+          rentalId: r.id,
+          listingName: r.listing.title,
+          renterName: u.id === r.renterId ? u.name : partner?.name,
+          renterEmail: u.id === r.renterId ? u.email : partner?.email,
+          lenderName: u.id === r.lenderId ? u.name : partner?.name,
+          lenderEmail: u.id === r.lenderId ? u.email : partner?.email,
+          reporterName: u.name,
+          reporterEmail: u.email,
+          otherName: partner?.name,
+          otherEmail: partner?.email,
+          reportCategory: "Rental problem",
+          startDate: r.startDate,
+          endDate: r.endDate,
+          createdAt: report.createdAt,
+          description: report.description,
+        }),
+      );
       return { ok: true };
     }
     if (action === "condition") {
@@ -865,7 +930,7 @@ async function handle(req, ctx) {
       return { ok: true };
     }
     if (r.status === "Pending" && +r.createdAt < Date.now() - 48 * 3600000) {
-      await expireRequests();
+      await expireRequests(after);
       fail("This request has expired.");
     }
     let next;
@@ -926,7 +991,7 @@ async function handle(req, ctx) {
         db.user.findUnique({ where: { id: r.renterId } }),
         db.user.findUnique({ where: { id: r.lenderId } }),
       ]);
-      adminNotification = notifyAdminOfMarketplaceEvent({
+      adminNotification = {
         event,
         rentalId: r.id,
         listingName: r.listing.title,
@@ -941,11 +1006,16 @@ async function handle(req, ctx) {
         status: next.requestStatus,
         createdAt: new Date(),
         reason: action === "cancel" ? "Cancelled by user" : null,
-      });
+        renterPhone: renter?.phone,
+        lenderPhone: lender?.phone,
+        paymentInfo: action === "accept" ? lender?.paymentInfo : null,
+      };
     }
-    const deliveries = [adminNotification];
-    if (notification) deliveries.push(deliverEmail(notification));
-    await Promise.allSettled(deliveries.filter(Boolean));
+    after(async () => {
+      if (notification) await Promise.allSettled([deliverEmail(notification)]);
+      if (adminNotification)
+        await notifyAdminOfMarketplaceEvent(adminNotification);
+    });
     return { ok: true };
   }
   if (route === "admin/moderate" && method === "POST") {

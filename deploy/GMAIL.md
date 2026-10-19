@@ -58,3 +58,11 @@ Gmail API/OAuth is a legitimate alternative, but no evidence here establishes th
 References: [Google rejection guidance](https://support.google.com/mail/answer/6596), [Google API sending limits](https://developers.google.com/workspace/gmail/api/guides/handle-errors), [Google App Passwords](https://support.google.com/accounts/answer/185833), [Vercel request headers](https://vercel.com/docs/headers/request-headers).
 
 Local failure coverage: `tests/gmail-dsn.test.mjs`, `tests/mail-provider.test.mjs`, and `tests/verification-failure-integration.mjs`. Run the latter only against local Postgres with live credentials absent and the email-preview development server running; it never sends a real email. Real acceptance/arrival/bounce evidence must still be collected separately from an authorized recipient mailbox.
+
+## Temporary password signup pilot
+
+Set `REQUIRE_EMAIL_VERIFICATION=false` in Vercel Production and redeploy to enable password-only signup. The server and server-rendered auth form use the same flag. No schema migration, credential reset, or session invalidation is required. Email ownership is NOT verified in this mode; only the campus domain is validated. Set `true` and redeploy to restore code signup; do not remove the Gmail monitor.
+
+Normal signup sends no code. Explicit recovery for existing accounts can still attempt a code; its proof requirement is never bypassed. Already-authenticated passwordless users can establish their first password from Account during the pilot. Forgotten-password recovery still depends on successful verified email or careful administrator-assisted ownership checks; knowledge of an email alone never permits resetting an existing account.
+
+Admin signup/login monitoring and marketplace notifications run after successful core responses. Failures are secondary; sessions, accounts and rental state remain saved. No sign-in email is generated for refresh or session renewal. Monitoring payloads contain only identity and timestamp, never credentials, session tokens, cookies, or IP addresses. All existing bounce diagnostics and retry bounds remain.
