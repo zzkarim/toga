@@ -360,7 +360,7 @@ export function RentalDates({ listing, onSubmit, busy, own }) {
         onRanges={setRanges}
         onReady={setAvailabilityReady}
       />
-      {quote && (
+      {!listing.isDemo && quote && (
         <div className="rental-quote">
           <span>
             {quote.days} day{quote.days === 1 ? "" : "s"} ×{" "}
@@ -369,24 +369,41 @@ export function RentalDates({ listing, onSubmit, busy, own }) {
           <strong>{money(quote.total)} total</strong>
         </div>
       )}
-      <label className="legal-check">
-        <input
-          type="checkbox"
-          required
-          checked={acknowledged}
-          onChange={(e) => setAcknowledged(e.target.checked)}
-        />
-        <span>{renterAcknowledgement(listing.retailValue)}</span>
-      </label>
+      {!listing.isDemo && (
+        <label className="legal-check">
+          <input
+            type="checkbox"
+            required
+            checked={acknowledged}
+            onChange={(e) => setAcknowledged(e.target.checked)}
+          />
+          <span>{renterAcknowledgement(listing.retailValue)}</span>
+        </label>
+      )}
       <button
-        disabled={busy || own || !quote || !acknowledged || !available}
+        disabled={
+          listing.isDemo || busy || own || !quote || !acknowledged || !available
+        }
         className="button burgundy full"
       >
-        {own ? "This is your listing" : busy ? "Sending…" : "Request rental"}
+        {listing.isDemo
+          ? "Inspiration only — not for rent"
+          : own
+            ? "This is your listing"
+            : busy
+              ? "Sending…"
+              : "Request rental"}
       </button>
       <p className="fine-print">
-        Pickup and return days are included. No charge in Toga. Arrange payment
-        with {listing.owner.name} using their preferred payment method.
+        {listing.isDemo ? (
+          "Have something similar? List your own piece on Toga."
+        ) : (
+          <>
+            Pickup and return days are included. No charge in Toga. Arrange
+            payment with {listing.owner.name} using their preferred payment
+            method.
+          </>
+        )}
       </p>
     </form>
   );

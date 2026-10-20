@@ -1,3 +1,4 @@
+import { demoBrowseWhere, demoRanges } from "../../../lib/demo-listings.mjs";
 import {
   RENTABLE_LISTING_STATUSES,
   blockingWhere,
@@ -665,7 +666,7 @@ async function handle(req, ctx) {
         : {
             status: { in: RENTABLE_LISTING_STATUSES },
             moderationStatus: "Visible",
-            isDemo: false,
+            ...demoBrowseWhere,
             owner: {
               accountStatus: "Active",
               OR: [
@@ -693,7 +694,10 @@ async function handle(req, ctx) {
             ? "Active"
             : l.status,
           requests: undefined,
-          unavailableRanges: unavailableRanges(l.requests),
+          unavailableRanges: [
+            ...unavailableRanges(l.requests),
+            ...demoRanges(l),
+          ],
           photos: JSON.parse(l.photos),
           owner: publicUser(l.owner),
           rating: rs.length
@@ -716,10 +720,12 @@ async function handle(req, ctx) {
         id: segments[1],
         status: { in: RENTABLE_LISTING_STATUSES },
         moderationStatus: "Visible",
-        isDemo: false,
+        ...demoBrowseWhere,
         owner: { accountStatus: "Active" },
       },
       select: {
+        id: true,
+        isDemo: true,
         owner: { select: { email: true } },
         requests: {
           where: blockingWhere(),
@@ -729,7 +735,12 @@ async function handle(req, ctx) {
     });
     if (!u || !listing || !isAllowedEmail(listing.owner.email))
       fail("Listing not found.", 404);
-    return { unavailableRanges: unavailableRanges(listing.requests) };
+    return {
+      unavailableRanges: [
+        ...unavailableRanges(listing.requests),
+        ...demoRanges(listing),
+      ],
+    };
   }
   if (route === "listings" && method === "POST") {
     const u = await requireProfile();

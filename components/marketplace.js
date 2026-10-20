@@ -477,6 +477,11 @@ export default function Home({ requireEmailVerification = true }) {
               <div className="listing-grid">
                 {visible.map((item) => (
                   <article className="listing-card" key={item.id}>
+                    {item.isDemo && (
+                      <div className="example-label">
+                        Toga example · Not for rent
+                      </div>
+                    )}
                     <div className="listing-image">
                       <button
                         className="listing-photo-button"
@@ -1192,6 +1197,13 @@ export default function Home({ requireEmailVerification = true }) {
                   <span>Size {selected.size}</span>
                   <span>{selected.condition}</span>
                 </div>
+                {selected.isDemo && (
+                  <p className="example-label">
+                    Halloween inspiration · Toga example. AI-generated photo,
+                    illustrative price, not available to rent. Greyed-out dates
+                    demonstrate availability, not real bookings.
+                  </p>
+                )}
                 <p>{selected.description}</p>
                 <div className="owner-card">
                   <div>

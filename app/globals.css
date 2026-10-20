@@ -2195,3 +2195,5 @@ footer > button:last-child {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+
+.example-label { padding: 10px 14px; background: var(--cream-deep); color: var(--text); font-size: 12px; font-weight: 600; line-height: 1.5; }
