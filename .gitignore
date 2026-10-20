@@ -15,3 +15,4 @@ data
 .local-postgres
 *.sqlite
 .env*
+!.env.example
