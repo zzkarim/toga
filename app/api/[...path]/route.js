@@ -2,7 +2,11 @@ import { demoBrowseWhere, demoRanges } from "../../../lib/demo-listings.mjs";
 import {
   RENTABLE_LISTING_STATUSES,
   blockingWhere,
-  unavailableRanges,
+  blockedRanges,
+  listingUnavailableRanges,
+  rangeAvailable,
+  dateOnly,
+  OWNER_CONFLICT_MESSAGE,
   UNAVAILABLE_MESSAGE,
 } from "../../../lib/availability.mjs";
 import { rentalContact } from "../../../lib/rental-contact.mjs";
@@ -56,6 +60,7 @@ import { listingSize } from "../../../lib/sizing.mjs";
 import {
   normalizePhone,
   needsProfile,
+  needsSupplyPrompt,
   afterAuthentication,
 } from "../../../lib/profile.mjs";
 import { hash, fail, limit } from "../../../lib/security";
@@ -193,11 +198,16 @@ async function listingData(body, userId) {
     typeof title !== "string" ||
     title.trim().length < 3 ||
     title.length > 100 ||
-    typeof description !== "string" ||
-    description.trim().length < 3 ||
-    description.length > 3000
+    (description != null && typeof description !== "string") ||
+    (description || "").length > 3000
   )
-    fail("Add a title and a short description.");
+    fail("Add a title of at least 3 characters.");
+  let blocked;
+  try {
+    blocked = blockedRanges(body.blockedRanges);
+  } catch (error) {
+    fail(error.message);
+  }
   if (!["New", "Like New", "Good"].includes(condition))
     fail("Choose a condition.");
   const price = Number(body.price);
@@ -214,7 +224,7 @@ async function listingData(body, userId) {
   await ownPhotos(photos, userId);
   return {
     title: title.trim(),
-    description,
+    description: description || "",
     categories: tags,
     customCategory,
     size,
@@ -224,7 +234,24 @@ async function listingData(body, userId) {
     lenderConfirmedAt: new Date(),
     photos: JSON.stringify(photos),
     status: "Active",
+    blockedRanges: blocked,
   };
+}
+// Owner blocks may never overlap a live rental; callers hold the listing row lock.
+async function assertNoRentalConflict(tx, listingId, ranges) {
+  if (!ranges.length) return;
+  const conflict = await tx.rentalRequest.findFirst({
+    where: {
+      listingId,
+      ...blockingWhere(),
+      OR: ranges.map((r) => ({
+        startDate: { lte: new Date(r.end) },
+        endDate: { gte: new Date(r.start) },
+      })),
+    },
+    select: { id: true },
+  });
+  if (conflict) fail(OWNER_CONFLICT_MESSAGE, 409);
 }
 async function handle(req, ctx) {
   const segments = (await ctx.params).path,
@@ -581,22 +608,42 @@ async function handle(req, ctx) {
   if (route === "me" && method === "GET") {
     const user = await currentUser();
     if (!user) return { user: null };
-    const stats = await db.rating.aggregate({
-      where: { ratedUserId: user.id },
-      _avg: { score: true },
-      _count: { score: true },
-    });
+    const [stats, listingCount] = await Promise.all([
+      db.rating.aggregate({
+        where: { ratedUserId: user.id },
+        _avg: { score: true },
+        _count: { score: true },
+      }),
+      needsSupplyPrompt(user, 0)
+        ? db.listing.count({
+            where: {
+              ownerId: user.id,
+              isDemo: false,
+              status: { not: "Archived" },
+            },
+          })
+        : 1,
+    ]);
     return {
       user: {
         ...user,
         needsAccountSecurity: needsAccountSecurity(user),
         needsTermsAcceptance: needsAcceptance(user),
         needsProfileCompletion: needsProfile(user),
+        needsSupplyPrompt: needsSupplyPrompt(user, listingCount),
         hasPassword: Boolean(user.passwordHash),
         rating: stats._avg.score,
         ratingCount: stats._count.score,
       },
     };
+  }
+  if (route === "me/supply-prompt" && method === "POST") {
+    const u = await requireUser();
+    await db.user.updateMany({
+      where: { id: u.id, supplyPromptHandledAt: null },
+      data: { supplyPromptHandledAt: new Date() },
+    });
+    return { ok: true };
   }
   if (route === "me" && method === "PATCH") {
     const u = await requireUser();
@@ -694,8 +741,11 @@ async function handle(req, ctx) {
             ? "Active"
             : l.status,
           requests: undefined,
+          // Owners edit their own blocks; renters only see merged unavailability.
+          blockedRanges: mine ? l.blockedRanges : undefined,
+          rentalRanges: mine ? listingUnavailableRanges(l.requests) : undefined,
           unavailableRanges: [
-            ...unavailableRanges(l.requests),
+            ...listingUnavailableRanges(l.requests, l.blockedRanges),
             ...demoRanges(l),
           ],
           photos: JSON.parse(l.photos),
@@ -726,6 +776,7 @@ async function handle(req, ctx) {
       select: {
         id: true,
         isDemo: true,
+        blockedRanges: true,
         owner: { select: { email: true } },
         requests: {
           where: blockingWhere(),
@@ -737,7 +788,7 @@ async function handle(req, ctx) {
       fail("Listing not found.", 404);
     return {
       unavailableRanges: [
-        ...unavailableRanges(listing.requests),
+        ...listingUnavailableRanges(listing.requests, listing.blockedRanges),
         ...demoRanges(listing),
       ],
     };
@@ -745,11 +796,15 @@ async function handle(req, ctx) {
   if (route === "listings" && method === "POST") {
     const u = await requireProfile();
     await limit(`listing-create:${u.id}`, 20, 3600000);
-    return {
-      listing: await db.listing.create({
-        data: { ...(await listingData(body, u.id)), ownerId: u.id },
+    const data = await listingData(body, u.id);
+    const [listing] = await db.$transaction([
+      db.listing.create({ data: { ...data, ownerId: u.id } }),
+      db.user.updateMany({
+        where: { id: u.id, supplyPromptHandledAt: null },
+        data: { supplyPromptHandledAt: new Date() },
       }),
-    };
+    ]);
+    return { listing };
   }
   if (
     segments[0] === "listings" &&
@@ -766,13 +821,29 @@ async function handle(req, ctx) {
     await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "toga"."Listing" WHERE id = ${l.id} FOR UPDATE`;
       const current = await tx.listing.findUnique({ where: { id: l.id } });
+      const live = await tx.rentalRequest.count({
+        where: { listingId: l.id, ...blockingWhere() },
+      });
+      const detailsChanged =
+        method === "DELETE" ||
+        [
+          "title",
+          "description",
+          "customCategory",
+          "size",
+          "condition",
+          "price",
+          "retailValue",
+          "photos",
+        ].some((key) => changes[key] !== current[key]) ||
+        changes.categories.join() !== current.categories.join();
       if (
         ![...RENTABLE_LISTING_STATUSES, "Draft"].includes(current.status) ||
-        (await tx.rentalRequest.count({
-          where: { listingId: l.id, ...blockingWhere() },
-        }))
+        (live && detailsChanged)
       )
         fail("Finish or resolve existing rentals before editing this listing.");
+      if (method === "PATCH")
+        await assertNoRentalConflict(tx, l.id, changes.blockedRanges);
       await tx.listing.update({ where: { id: l.id }, data: changes });
     });
     return { ok: true };
@@ -818,7 +889,15 @@ async function handle(req, ctx) {
         },
         select: { id: true },
       });
-      if (conflict) fail(UNAVAILABLE_MESSAGE, 409);
+      if (
+        conflict ||
+        !rangeAvailable(
+          dateOnly(dates.startDate),
+          dateOnly(dates.endDate),
+          listingUnavailableRanges([], l.blockedRanges),
+        )
+      )
+        fail(UNAVAILABLE_MESSAGE, 409);
       const rental = await tx.rentalRequest.create({
         data: {
           listingId: l.id,

@@ -20,7 +20,12 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { api, Field, Modal, PhotoUpload, money } from "../components/ui";
-import { ListingForm, ProfileForm, RentalDates } from "../components/forms";
+import {
+  ListingForm,
+  ProfileForm,
+  RentalDates,
+  SupplyPrompt,
+} from "../components/forms";
 import { CAMPUS, DESCRIPTION, safeDestination } from "../lib/campus.mjs";
 import { browseCategories, displayCategories } from "../lib/rules.mjs";
 import { filterListings, sizes } from "../lib/browse.mjs";
@@ -61,7 +66,9 @@ export default function Home({ requireEmailVerification = true }) {
     [currentPassword, setCurrentPassword] = useState("");
   const [token, setToken] = useState(""),
     [destination, setDestination] = useState("/?view=browse");
-  const refreshVersion = useRef(0);
+  const refreshVersion = useRef(0),
+    supplyShown = useRef(false);
+  const [supplyFlow, setSupplyFlow] = useState(false);
   async function refresh() {
     const version = ++refreshVersion.current;
     const { user: me } = await api("me");
@@ -79,6 +86,10 @@ export default function Home({ requireEmailVerification = true }) {
       return;
     }
     setUser(me);
+    if (me?.needsSupplyPrompt && !supplyShown.current) {
+      supplyShown.current = true;
+      setModal((current) => current ?? "supply");
+    }
     if (!me) {
       setListings([]);
       setMine([]);
@@ -236,6 +247,12 @@ export default function Home({ requireEmailVerification = true }) {
     } finally {
       setBusy(false);
     }
+  }
+  function skipSupplyPrompt() {
+    setSupplyFlow(false);
+    setModal(null);
+    setUser((u) => ({ ...u, needsSupplyPrompt: false }));
+    api("me/supply-prompt", "POST", {}).catch(() => {});
   }
   function toggleSaved(id) {
     const next = saved.includes(id)
@@ -973,6 +990,10 @@ export default function Home({ requireEmailVerification = true }) {
               verify: "Sign in to Toga",
               detail: selected?.title,
               listing: selected ? "Edit listing" : "List an item",
+              supply:
+                Date.now() - new Date(user?.createdAt) < 86400000
+                  ? "Help build the Toga closet"
+                  : "Have something you could put on Toga?",
               how: "How rentals work",
               delete: "Remove listing?",
               rating: "Rate your rental",
@@ -984,7 +1005,10 @@ export default function Home({ requireEmailVerification = true }) {
           }
           busy={protectedBusy}
           onClose={() => {
-            if (!protectedBusy) setModal(null);
+            if (protectedBusy) return;
+            if (modal === "supply") skipSupplyPrompt();
+            else if (modal === "listing" && supplyFlow) setModal("supply");
+            else setModal(null);
           }}
           wide={modal === "detail"}
         >
@@ -1149,6 +1173,7 @@ export default function Home({ requireEmailVerification = true }) {
               item={selected}
               busy={busy}
               onUpload={setUploading}
+              onCancel={supplyFlow ? () => setModal("supply") : undefined}
               onSubmit={(data) =>
                 perform(
                   () =>
@@ -1158,9 +1183,22 @@ export default function Home({ requireEmailVerification = true }) {
                       data,
                     ),
                   "Listing saved.",
-                  () => navigate("closet"),
+                  () => {
+                    setSupplyFlow(false);
+                    navigate("closet");
+                  },
                 )
               }
+            />
+          )}
+          {modal === "supply" && (
+            <SupplyPrompt
+              isNew={Date.now() - new Date(user?.createdAt) < 86400000}
+              onList={() => {
+                setSupplyFlow(true);
+                open("listing");
+              }}
+              onSkip={skipSupplyPrompt}
             />
           )}
           {modal === "detail" && (
