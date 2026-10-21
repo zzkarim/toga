@@ -4,6 +4,7 @@ import { rentalResponseMatches } from "../lib/rental-contact.mjs";
 import { needsProfile } from "../lib/profile.mjs";
 import AdminDashboard from "./admin-dashboard";
 import SeasonalDecor from "./seasonal-decor";
+import { WantedForm, WantedView } from "./wanted";
 import { needsAcceptance, TERMS_VERSION } from "../lib/legal.mjs";
 import AuthForm from "../components/auth-form";
 import { useEffect, useState, useRef } from "react";
@@ -43,6 +44,7 @@ export default function Home({ requireEmailVerification = true }) {
     [rentals, setRentals] = useState([]),
     [activity, setActivity] = useState({ items: [], unreadCount: 0 }),
     [activityError, setActivityError] = useState(""),
+    [wanted, setWanted] = useState({ posts: [], mine: [], unseenCount: 0 }),
     [admin, setAdmin] = useState(null),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -67,7 +69,8 @@ export default function Home({ requireEmailVerification = true }) {
   const [token, setToken] = useState(""),
     [destination, setDestination] = useState("/?view=browse");
   const refreshVersion = useRef(0),
-    supplyShown = useRef(false);
+    supplyShown = useRef(false),
+    deepLink = useRef(null);
   const [supplyFlow, setSupplyFlow] = useState(false);
   async function refresh() {
     const version = ++refreshVersion.current;
@@ -95,14 +98,16 @@ export default function Home({ requireEmailVerification = true }) {
       setMine([]);
       setRentals([]);
       setActivity({ items: [], unreadCount: 0 });
+      setWanted({ posts: [], mine: [], unseenCount: 0 });
       setAdmin(null);
       return;
     }
-    const [a, b, c, d] = await Promise.all([
+    const [a, b, c, d, w] = await Promise.all([
       api("listings"),
       api("listings?mine=true"),
       api("requests"),
       api("activity"),
+      api("wanted"),
     ]);
     if (version !== refreshVersion.current) return;
     if (!rentalResponseMatches(c, me.id)) {
@@ -114,7 +119,18 @@ export default function Home({ requireEmailVerification = true }) {
     setMine(b.listings);
     setRentals(c.requests);
     setActivity(d);
+    setWanted(w);
     setActivityError("");
+    // Email links: ?listing=<id> opens a listing; ?have=<id> starts "I have this".
+    const link = deepLink.current;
+    deepLink.current = null;
+    if (link?.listing) {
+      const item = a.listings.find((l) => l.id === link.listing);
+      if (item) open("detail", item);
+    } else if (link?.have) {
+      const post = w.posts.find((p) => p.id === link.have);
+      if (post) open("listing", { title: post.title, sourceWantedId: post.id });
+    }
     if (me.role === "admin") setAdmin(await api("admin"));
   }
   useEffect(() => {
@@ -123,14 +139,25 @@ export default function Home({ requireEmailVerification = true }) {
     const updateView = () => {
       const requested = new URLSearchParams(location.search).get("view");
       setView(
-        ["browse", "closet", "rentals", "profile", "admin", "saved"].includes(
-          requested,
-        )
+        [
+          "browse",
+          "wanted",
+          "closet",
+          "rentals",
+          "profile",
+          "admin",
+          "saved",
+        ].includes(requested)
           ? requested
           : "browse",
       );
     };
     updateView();
+    if (params.get("listing") || params.get("have"))
+      deepLink.current = {
+        listing: params.get("listing"),
+        have: params.get("have"),
+      };
     if (params.get("token")) {
       setToken(params.get("token"));
       setDestination(next);
@@ -193,6 +220,11 @@ export default function Home({ requireEmailVerification = true }) {
       document.removeEventListener("visibilitychange", poll);
     };
   }, [user?.id]);
+  useEffect(() => {
+    if (view !== "wanted" || !user?.id || !wanted.unseenCount) return;
+    setWanted((w) => ({ ...w, unseenCount: 0 }));
+    api("wanted/seen", "POST", {}).catch(() => {});
+  }, [view, user?.id, wanted.unseenCount]);
   function navigate(next) {
     setView(next);
     setMenu(false);
@@ -247,6 +279,15 @@ export default function Home({ requireEmailVerification = true }) {
     } finally {
       setBusy(false);
     }
+  }
+  // Prefill only the item name; price, size, photos and availability stay the lender's call.
+  function haveThis(post) {
+    gate("listing", { title: post.title, sourceWantedId: post.id });
+  }
+  function viewListing(id) {
+    const item = listings.find((l) => l.id === id);
+    if (item) open("detail", item);
+    else setToast("That listing is no longer available.");
   }
   function skipSupplyPrompt() {
     setSupplyFlow(false);
@@ -306,6 +347,7 @@ export default function Home({ requireEmailVerification = true }) {
             >
               {[
                 ["browse", "Browse"],
+                ["wanted", "Wanted"],
                 ["closet", "My listings"],
                 ["rentals", "My rentals"],
                 ["profile", "Account"],
@@ -317,6 +359,14 @@ export default function Home({ requireEmailVerification = true }) {
                   onClick={() => navigate(key)}
                 >
                   {label}
+                  {key === "wanted" && wanted.unseenCount > 0 && (
+                    <span
+                      className="count"
+                      aria-label={`${wanted.unseenCount} new on Wanted`}
+                    >
+                      {wanted.unseenCount > 9 ? "9+" : wanted.unseenCount}
+                    </span>
+                  )}
                   {key === "rentals" && activity.unreadCount > 0 && (
                     <span
                       className="count"
@@ -384,7 +434,7 @@ export default function Home({ requireEmailVerification = true }) {
       ) : (
         <main
           className={
-            view === "browse" || view === "saved"
+            ["browse", "saved", "wanted"].includes(view)
               ? "marketplace"
               : view === "admin"
                 ? "dashboard admin-dashboard"
@@ -578,7 +628,33 @@ export default function Home({ requireEmailVerification = true }) {
                   </button>
                 </div>
               )}
+              {view === "browse" && (
+                <div className="wanted-cta">
+                  <span>Can’t find what you’re looking for?</span>
+                  <button
+                    className="text-button"
+                    onClick={() => gate("wanted")}
+                  >
+                    Post what you need
+                  </button>
+                </div>
+              )}
             </>
+          ) : view === "wanted" ? (
+            <WantedView
+              data={wanted}
+              onPost={() => gate("wanted")}
+              onHave={haveThis}
+              onViewListing={viewListing}
+              onStatus={(post, action) =>
+                perform(
+                  () => api(`wanted/${post.id}/${action}`, "POST", {}),
+                  action === "found"
+                    ? "Glad you found it."
+                    : "Wanted post removed.",
+                )
+              }
+            />
           ) : (
             <>
               <div className="section-heading">
@@ -989,7 +1065,8 @@ export default function Home({ requireEmailVerification = true }) {
               password: "Set your password",
               verify: "Sign in to Toga",
               detail: selected?.title,
-              listing: selected ? "Edit listing" : "List an item",
+              listing: selected?.id ? "Edit listing" : "List an item",
+              wanted: "Post what you need",
               supply:
                 Date.now() - new Date(user?.createdAt) < 86400000
                   ? "Help build the Toga closet"
@@ -1178,15 +1255,29 @@ export default function Home({ requireEmailVerification = true }) {
                 perform(
                   () =>
                     api(
-                      selected ? `listings/${selected.id}` : "listings",
-                      selected ? "PATCH" : "POST",
+                      selected?.id ? `listings/${selected.id}` : "listings",
+                      selected?.id ? "PATCH" : "POST",
                       data,
                     ),
-                  "Listing saved.",
+                  selected?.sourceWantedId
+                    ? "Listed! We let the student who wanted it know."
+                    : "Listing saved.",
                   () => {
                     setSupplyFlow(false);
                     navigate("closet");
                   },
+                )
+              }
+            />
+          )}
+          {modal === "wanted" && (
+            <WantedForm
+              busy={busy}
+              onSubmit={(data) =>
+                perform(
+                  () => api("wanted", "POST", data),
+                  "Posted. We’ll email you if someone lists it.",
+                  () => navigate("wanted"),
                 )
               }
             />
