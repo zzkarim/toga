@@ -23,6 +23,7 @@ model User {
   classYear Int?
   profilePhotoUrl String?
   paymentInfo String?
+  supplyPromptHandledAt DateTime?
   role String @default("user")
   createdAt DateTime @default(now())
   listings Listing[]
@@ -64,6 +65,7 @@ model Listing {
   status String @default("Active")
   highValue Boolean @default(false)
   isDemo Boolean @default(false)
+  blockedRanges Json @default("[]")
   createdAt DateTime @default(now())
   requests RentalRequest[]
   @@index([status, createdAt])

@@ -4,7 +4,7 @@ import { campusToday } from "../lib/rules.mjs";
 import { rangeAvailable, selectRentalDate } from "../lib/availability.mjs";
 import { api } from "./ui";
 const dayKey = (d) => d.toISOString().slice(0, 10);
-const label = (day) =>
+export const dayLabel = (day) =>
   new Date(day + "T00:00:00Z").toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -18,6 +18,9 @@ export default function RentalCalendar({
   ranges,
   onRanges,
   onReady,
+  title = "Choose your rental dates",
+  hint = "Select one day for a one-day rental, or select a start and end date for multiple days.",
+  footnote = "Crossed-out dates are unavailable. Pickup and return days are included.",
 }) {
   const today = campusToday(),
     id = useId();
@@ -25,6 +28,8 @@ export default function RentalCalendar({
   const [hover, setHover] = useState("");
   const [loadError, setLoadError] = useState("");
   useEffect(() => {
+    // Owner blocking passes local ranges only; renter calendars poll the server.
+    if (!listingId) return;
     let active = true;
     const refresh = async () => {
       try {
@@ -75,11 +80,8 @@ export default function RentalCalendar({
     selection.start && !rangeAvailable(selection.start, selection.end, ranges);
   return (
     <section className="rental-calendar" aria-labelledby={id}>
-      <h3 id={id}>Choose your rental dates</h3>
-      <p className="fine-print">
-        Select one day for a one-day rental, or select a start and end date for
-        multiple days.
-      </p>
+      <h3 id={id}>{title}</h3>
+      <p className="fine-print">{hint}</p>
       <div className="calendar-month">
         <button
           type="button"
@@ -123,7 +125,7 @@ export default function RentalCalendar({
               key={day}
               type="button"
               disabled={past || blocked}
-              aria-label={`${label(day)}${blocked ? ", unavailable" : past ? ", past" : ""}${selected ? ", selected" : ""}`}
+              aria-label={`${dayLabel(day)}${blocked ? ", unavailable" : past ? ", past" : ""}${selected ? ", selected" : ""}`}
               aria-pressed={!!selected}
               aria-current={day === today ? "date" : undefined}
               className={`calendar-day${selected ? " selected" : ""}${preview ? " preview" : ""}${edge ? " edge" : ""}${blocked ? " blocked" : ""}`}
@@ -139,12 +141,10 @@ export default function RentalCalendar({
           );
         })}
       </div>
-      <p className="fine-print">
-        Crossed-out dates are unavailable. Pickup and return days are included.
-      </p>
+      <p className="fine-print">{footnote}</p>
       <p className="calendar-selection" aria-live="polite">
         {selection.start
-          ? `${label(selection.start)}${selection.end !== selection.start ? ` – ${label(selection.end)}` : " · 1 day"}. ${selection.choosingEnd ? "Ready for one day, or select a later end date." : "Select another day to start a new range."}`
+          ? `${dayLabel(selection.start)}${selection.end !== selection.start ? ` – ${dayLabel(selection.end)}` : " · 1 day"}. ${selection.choosingEnd ? "Ready for one day, or select a later end date." : "Select another day to start a new range."}`
           : "Choose an available day to start."}
       </p>
       {(loadError || selection.error || stale) && (
