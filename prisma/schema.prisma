@@ -24,10 +24,12 @@ model User {
   profilePhotoUrl String?
   paymentInfo String?
   supplyPromptHandledAt DateTime?
+  wantedSeenAt DateTime?
   role String @default("user")
   createdAt DateTime @default(now())
   listings Listing[]
   sessions Session[]
+  wantedPosts WantedPost[]
   @@schema("toga")
 }
 model Session {
@@ -68,7 +70,10 @@ model Listing {
   blockedRanges Json @default("[]")
   createdAt DateTime @default(now())
   requests RentalRequest[]
+  sourceWantedId String?
+  sourceWanted WantedPost? @relation(fields: [sourceWantedId], references: [id], onDelete: SetNull)
   @@index([status, createdAt])
+  @@index([sourceWantedId])
   @@schema("toga")
 }
 model RentalRequest {
@@ -203,5 +208,25 @@ model EmailDeliveryEvent {
   occurredAt DateTime
   createdAt DateTime @default(now())
   @@index([providerMessageId])
+  @@schema("toga")
+}
+
+// "I want someone to list this": a demand signal above listings, never a rental.
+model WantedPost {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  title String
+  details String @default("")
+  size String?
+  startDate DateTime
+  endDate DateTime
+  status String @default("Open")
+  moderationStatus String @default("Visible")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  listings Listing[]
+  @@index([status, moderationStatus, endDate, createdAt])
+  @@index([userId, createdAt])
   @@schema("toga")
 }

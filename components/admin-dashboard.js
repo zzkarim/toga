@@ -10,7 +10,7 @@ const labels = {
   close: "Close account",
   hide: "Hide listing",
   restore: "Restore listing",
-  remove: "Remove listing",
+  remove: "Remove",
   cancel: "Cancel rental",
   resolve: "Resolve",
   reopen: "Reopen report",
@@ -48,6 +48,7 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
           row.renterId === focus.id ||
           row.lenderId === focus.id ||
           row.reporterId === focus.id ||
+          (tab === "wanted" && row.userId === focus.id) ||
           [
             requests[row.requestId]?.renterId,
             requests[row.requestId]?.lenderId,
@@ -104,21 +105,27 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
         </div>
       )}
       <div className="admin-tabs" aria-label="Admin sections">
-        {["users", "listings", "requests", "reports", "emails", "audit"].map(
-          (t) => (
-            <button
-              key={t}
-              aria-pressed={tab === t}
-              className={tab === t ? "selected" : ""}
-              onClick={() => {
-                setTab(t);
-                if (["emails", "audit"].includes(t)) setFocus(null);
-              }}
-            >
-              {t}
-            </button>
-          ),
-        )}
+        {[
+          "users",
+          "listings",
+          "requests",
+          "wanted",
+          "reports",
+          "emails",
+          "audit",
+        ].map((t) => (
+          <button
+            key={t}
+            aria-pressed={tab === t}
+            className={tab === t ? "selected" : ""}
+            onClick={() => {
+              setTab(t);
+              if (["emails", "audit"].includes(t)) setFocus(null);
+            }}
+          >
+            {t}
+          </button>
+        ))}
       </div>
       {focus && (
         <p>
@@ -158,6 +165,7 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
                       listings: "Listed",
                       requests: "Requested",
                       reports: "Reported",
+                      wanted: "Posted",
                     }[tab]
                   }{" "}
                   {new Date(row.createdAt).toLocaleString()}
@@ -403,6 +411,35 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
                 </p>
               </>
             )}
+            {tab === "wanted" && (
+              <>
+                <p>
+                  {row.status} · {row.moderationStatus} · Needed{" "}
+                  {new Date(row.startDate).toISOString().slice(0, 10)} to{" "}
+                  {new Date(row.endDate).toISOString().slice(0, 10)}
+                  {row.size && ` · ${row.size}`}
+                </p>
+                {row.details && <p>{row.details}</p>}
+                <p>{row._count.listings} listing(s) created from this post</p>
+                <button
+                  className="text-button"
+                  onClick={() => inspect("users", row.userId)}
+                >
+                  Requester: {who(row.userId)}
+                </button>
+                <div className="moderation-actions">
+                  {row.moderationStatus === "Visible" ? (
+                    <button onClick={() => action(row, "remove")}>
+                      Remove wanted post
+                    </button>
+                  ) : (
+                    <button onClick={() => action(row, "restore")}>
+                      Restore wanted post
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
             {tab === "audit" && (
               <>
                 <p>
@@ -454,9 +491,11 @@ export default function AdminDashboard({ data, onRefresh, userId }) {
                 ? "Disabled accounts cannot sign in and their listings are excluded from Browse. Account history and legal records are retained. Reactivation restores access; existing sessions must sign in again."
                 : pending.targetType === "listings"
                   ? "This changes marketplace visibility. It preserves the listing, reports, and existing rental access. Removal can be reversed by an administrator."
-                  : pending.targetType === "requests"
-                    ? "This changes the rental state and notifies both participants in Toga. Resolve an active rental only after confirming that the item was returned. No payment or refund is processed."
-                    : "This updates the internal report record. Notes are visible only to administrators."}
+                  : pending.targetType === "wanted"
+                    ? "Removed Wanted posts disappear from the feed. Listings already created from them stay unchanged. Restoring is possible."
+                    : pending.targetType === "requests"
+                      ? "This changes the rental state and notifies both participants in Toga. Resolve an active rental only after confirming that the item was returned. No payment or refund is processed."
+                      : "This updates the internal report record. Notes are visible only to administrators."}
             </p>
             <Field label="Reason / internal note">
               {(id) => (

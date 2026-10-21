@@ -34,6 +34,14 @@ import {
   notifyAdminOfAuthEvent,
 } from "../../../lib/admin-notifications.mjs";
 import { paymentInformation } from "../../../lib/payment.mjs";
+import {
+  WANTED_FEED_LIMIT,
+  activeWantedWhere,
+  publicWanted,
+  queueWantedEmails,
+  wantedData,
+  wantedResponseMail,
+} from "../../../lib/wanted.mjs";
 import { authLog } from "../../../lib/auth-log.mjs";
 import { codeMatches, OTP_SUBJECT, OTP_ATTEMPTS } from "../../../lib/otp.mjs";
 import {
@@ -70,6 +78,7 @@ import {
   customCategoryValue,
   dateRange,
   transition,
+  campusToday,
 } from "../../../lib/rules.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -252,6 +261,23 @@ async function assertNoRentalConflict(tx, listingId, ranges) {
     select: { id: true },
   });
   if (conflict) fail(OWNER_CONFLICT_MESSAGE, 409);
+}
+// Listings a requester can actually open and request from a Wanted response.
+const openListingWhere = {
+  status: { in: RENTABLE_LISTING_STATUSES },
+  moderationStatus: "Visible",
+  owner: { accountStatus: "Active" },
+};
+// Paced below Resend's per-second limit; anything left stays Queued for the jobs runner.
+async function deliverQueued(ids, deadline = Date.now() + 40000) {
+  for (const id of ids) {
+    if (Date.now() > deadline) break;
+    const record = await db.email.findUnique({ where: { id } });
+    if (record) await Promise.allSettled([deliverEmail(record)]);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 600);
+    });
+  }
 }
 async function handle(req, ctx) {
   const segments = (await ctx.params).path,
@@ -797,14 +823,158 @@ async function handle(req, ctx) {
     const u = await requireProfile();
     await limit(`listing-create:${u.id}`, 20, 3600000);
     const data = await listingData(body, u.id);
-    const [listing] = await db.$transaction([
-      db.listing.create({ data: { ...data, ownerId: u.id } }),
-      db.user.updateMany({
+    // "I have this": link only to someone else's still-open Wanted post; otherwise list normally.
+    const wanted =
+      typeof body.sourceWantedId === "string" &&
+      body.sourceWantedId.length < 100
+        ? await db.wantedPost.findFirst({
+            where: {
+              id: body.sourceWantedId,
+              userId: { not: u.id },
+              ...activeWantedWhere(),
+            },
+            include: { user: { select: { email: true } } },
+          })
+        : null;
+    const { listing, notice } = await db.$transaction(async (tx) => {
+      const listing = await tx.listing.create({
+        data: { ...data, ownerId: u.id, sourceWantedId: wanted?.id ?? null },
+      });
+      await tx.user.updateMany({
         where: { id: u.id, supplyPromptHandledAt: null },
         data: { supplyPromptHandledAt: new Date() },
+      });
+      const notice =
+        wanted &&
+        (await tx.email.create({
+          data: {
+            provider: process.env.EMAIL_PROVIDER || "gmail",
+            id: `wanted-response-${listing.id}`,
+            to: wanted.user.email,
+            ...wantedResponseMail(wanted, listing),
+          },
+        }));
+      return { listing, notice };
+    });
+    if (notice) after(() => Promise.allSettled([deliverEmail(notice)]));
+    return { listing };
+  }
+  if (route === "wanted" && method === "GET") {
+    const u = await requireUser();
+    const since = u.wantedSeenAt || new Date(0);
+    const [feed, mine, newPosts, newResponses] = await db.$transaction([
+      db.wantedPost.findMany({
+        where: { ...activeWantedWhere(), userId: { not: u.id } },
+        include: {
+          _count: { select: { listings: { where: openListingWhere } } },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: WANTED_FEED_LIMIT,
+      }),
+      db.wantedPost.findMany({
+        where: { userId: u.id, moderationStatus: "Visible" },
+        include: {
+          listings: {
+            where: openListingWhere,
+            select: { id: true, title: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 20,
+      }),
+      db.wantedPost.count({
+        where: {
+          ...activeWantedWhere(),
+          userId: { not: u.id },
+          createdAt: { gt: since },
+        },
+      }),
+      db.listing.count({
+        where: {
+          ...openListingWhere,
+          sourceWanted: { userId: u.id },
+          createdAt: { gt: since },
+        },
       }),
     ]);
-    return { listing };
+    const today = new Date(campusToday() + "T00:00:00.000Z");
+    return {
+      posts: feed.map((post) => publicWanted(post, u.id)),
+      mine: mine.map((post) => ({
+        ...publicWanted(post, u.id),
+        status:
+          post.status === "Open" && post.endDate < today
+            ? "Expired"
+            : post.status,
+        responses: post.listings.map((l) => ({
+          ...l,
+          isNew: l.createdAt > since,
+        })),
+      })),
+      unseenCount: newPosts + newResponses,
+    };
+  }
+  if (route === "wanted/seen" && method === "POST") {
+    const u = await requireUser();
+    await db.user.update({
+      where: { id: u.id },
+      data: { wantedSeenAt: new Date() },
+    });
+    return { ok: true };
+  }
+  if (route === "wanted" && method === "POST") {
+    const u = await requireProfile();
+    await limit(`wanted-create:${u.id}`, 5, 86400000);
+    let data;
+    try {
+      data = wantedData(body);
+    } catch (error) {
+      fail(error.message);
+    }
+    const post = await db.wantedPost.create({
+      data: { ...data, userId: u.id },
+    });
+    // Notifications are secondary: the post stands even if queueing or delivery fails.
+    let queued = [];
+    try {
+      queued = await queueWantedEmails(
+        db,
+        post,
+        u,
+        process.env.EMAIL_PROVIDER || "gmail",
+      );
+    } catch {
+      console.error("Wanted notifications could not be queued", post.id);
+    }
+    after(async () => {
+      await notifyAdminOfMarketplaceEvent({
+        event: "wanted",
+        wantedId: post.id,
+        listingName: post.title,
+        actorName: u.name,
+        actorEmail: u.email,
+        startDate: post.startDate,
+        endDate: post.endDate,
+        size: post.size,
+        description: post.details,
+        createdAt: post.createdAt,
+      });
+      if (emailConfigured()) await deliverQueued(queued);
+    });
+    return { post: publicWanted(post, u.id) };
+  }
+  if (segments[0] === "wanted" && segments.length === 3 && method === "POST") {
+    const u = await requireUser();
+    const status = { found: "Fulfilled", close: "Closed" }[segments[2]];
+    if (!status) fail("Not found.", 404);
+    const post = await db.wantedPost.findUnique({ where: { id: segments[1] } });
+    if (!post || post.userId !== u.id) fail("Wanted post not found.", 404);
+    await db.wantedPost.updateMany({
+      where: { id: post.id, userId: u.id, status: "Open" },
+      data: { status },
+    });
+    return { ok: true };
   }
   if (
     segments[0] === "listings" &&
@@ -1239,7 +1409,7 @@ async function handle(req, ctx) {
   if (route === "admin" && method === "GET") {
     const u = await requireUser();
     if (u.role !== "admin") fail("Admin access required.", 403);
-    const [users, listings, requests, reports, emails, audit] =
+    const [users, listings, requests, reports, emails, audit, wanted] =
       await Promise.all([
         db.user.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }] }),
         db.listing.findMany({
@@ -1273,6 +1443,11 @@ async function handle(req, ctx) {
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 100,
         }),
+        db.wantedPost.findMany({
+          include: { _count: { select: { listings: true } } },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 200,
+        }),
       ]);
     const seenAuth = new Set();
     const latestEmails = emails.filter((email) => {
@@ -1289,6 +1464,7 @@ async function handle(req, ctx) {
       reports,
       emails: latestEmails,
       audit,
+      wanted,
       emailProvider: process.env.EMAIL_PROVIDER || "gmail",
     };
   }

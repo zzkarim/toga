@@ -2266,3 +2266,113 @@ footer > button:last-child {
   width: 100%;
   margin-top: 8px;
 }
+/* Wanted: lightweight demand cards above the listing/rental flow. */
+.wanted-intro {
+  font-size: 13px;
+  color: var(--text-soft);
+  margin: 8px 0 0;
+}
+.wanted-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.wanted-card {
+  background: var(--cream-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+.wanted-card h3 {
+  font-size: 19px;
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+.wanted-card p {
+  font-size: 13px;
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+.wanted-card .wanted-details {
+  color: var(--text-soft);
+}
+.wanted-mine {
+  margin: 28px 0;
+}
+.wanted-heading {
+  align-items: flex-end;
+  gap: 20px;
+}
+.wanted-mine h2 {
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+.wanted-card.mine {
+  flex-direction: row;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.wanted-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.wanted-status {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  background: var(--cream-deep);
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.wanted-responses {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.wanted-responses li {
+  margin-top: 4px;
+}
+.new-tag {
+  color: var(--burgundy);
+  font-size: 10px;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+.wanted-cta,
+.wanted-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 28px;
+  font-size: 13px;
+  text-align: center;
+}
+.wanted-form .rental-calendar {
+  margin: 8px 0 16px;
+}
+@media (max-width: 580px) {
+  .wanted-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .wanted-card.mine {
+    flex-direction: column;
+  }
+  .wanted-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+  }
+}
