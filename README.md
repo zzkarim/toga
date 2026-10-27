@@ -8,7 +8,7 @@ Next.js 15 / React 19, Prisma 6, Supabase Postgres, private Supabase Storage, an
 
 ## Launch status
 
-Production URL: **https://toga-ecru.vercel.app**. Vercel is connected to Supabase Postgres and private Storage; production migrations are applied. Hosted routing, database sessions, image upload/download and authorization, domain rejection, and the scheduled job's HTTP response passed verification. The original SendGrid rollout accepted the admin magic-link test, and the live mobile login form accepts the exact admin exception.
+Production URL: **https://jointoga.com*. Vercel is connected to Supabase Postgres and private Storage; production migrations are applied. Hosted routing, database sessions, image upload/download and authorization, domain rejection, and the scheduled job's HTTP response passed verification. The original SendGrid rollout accepted the admin magic-link test, and the live mobile login form accepts the exact admin exception.
 
 **Limited pilot:** production contains real student data. Never reset or empty it. See [domain, email, authentication and rollback operations](deploy/RESEND.md). Check the live config and release before operating on production.
 
